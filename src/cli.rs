@@ -1,6 +1,6 @@
 use crate::config::{AppConfig, init_config};
 use crate::db::Database;
-use crate::{audit, doctor, install, mcp, run as skill_run, scan, search, setup, trust};
+use crate::{audit, connect, doctor, install, mcp, run as skill_run, scan, search, setup, trust};
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 
@@ -40,6 +40,11 @@ enum Command {
     },
     Install {
         source: String,
+    },
+    Connect {
+        agent: String,
+        #[arg(long)]
+        dry_run: bool,
     },
     Mcp,
     McpConfig,
@@ -205,6 +210,28 @@ pub fn run(cli: Cli) -> Result<()> {
             let report = scan::scan_all(&cfg, &db)?;
             println!("Installed: {}", installed.display());
             println!("Indexed {} skills", report.skills_indexed);
+        }
+        Command::Connect { agent, dry_run } => {
+            let home = home_dir();
+            let command = setup::skillhub_command();
+            let report =
+                connect::connect(&home, &agent, &command.to_string_lossy(), dry_run)?;
+            if !report.changed {
+                println!(
+                    "skillhub is already registered in {}",
+                    report.config_path.display()
+                );
+            } else if dry_run {
+                println!("Would update {}", report.config_path.display());
+            } else {
+                println!("Updated {}", report.config_path.display());
+                if let Some(backup) = &report.backup_path {
+                    println!("Backup written to {}", backup.display());
+                }
+                println!("Restart {} to pick up the change.", report.agent);
+                println!();
+                println!("{}", doctor::doctor_agent(&home, &agent)?);
+            }
         }
         Command::Mcp => {
             let cfg = AppConfig::load_or_init()?;

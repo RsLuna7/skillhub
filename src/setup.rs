@@ -67,7 +67,7 @@ fn mcp_config_json(command: &Path) -> String {
     .unwrap_or_else(|_| "{}".to_string())
 }
 
-fn skillhub_command() -> PathBuf {
+pub(crate) fn skillhub_command() -> PathBuf {
     if command_on_path("skillhub") {
         return PathBuf::from("skillhub");
     }
