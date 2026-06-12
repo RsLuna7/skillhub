@@ -155,8 +155,8 @@ impl Database {
             INSERT INTO skills (
                 id, name, summary, description, install_path, source_type, source_url, entry_file,
                 readme_file, has_scripts, required_env_json, tags_json, detected_capabilities_json,
-                risk_level, last_scanned_at, created_at, updated_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
+                risk_level, last_scanned_at, source_agent, source_root, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
             ON CONFLICT(id) DO UPDATE SET
                 name=excluded.name,
                 summary=excluded.summary,
@@ -172,6 +172,8 @@ impl Database {
                 detected_capabilities_json=excluded.detected_capabilities_json,
                 risk_level=excluded.risk_level,
                 last_scanned_at=excluded.last_scanned_at,
+                source_agent=excluded.source_agent,
+                source_root=excluded.source_root,
                 updated_at=excluded.updated_at
             "#,
             params![
@@ -190,6 +192,8 @@ impl Database {
                 serde_json::to_string(&skill.detected_capabilities)?,
                 skill.risk_level.as_str(),
                 skill.last_scanned_at,
+                skill.source_agent,
+                skill.source_root,
                 now,
                 now,
             ],
@@ -565,6 +569,8 @@ fn skill_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Skill> {
             .unwrap_or_default(),
         risk_level: RiskLevel::parse(&risk),
         last_scanned_at: row.get("last_scanned_at")?,
+        source_agent: row.get("source_agent").unwrap_or_default(),
+        source_root: row.get("source_root").unwrap_or_default(),
     })
 }
 

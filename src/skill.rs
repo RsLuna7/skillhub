@@ -20,6 +20,10 @@ pub struct Skill {
     pub detected_capabilities: Vec<String>,
     pub risk_level: RiskLevel,
     pub last_scanned_at: String,
+    #[serde(default)]
+    pub source_agent: String,
+    #[serde(default)]
+    pub source_root: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

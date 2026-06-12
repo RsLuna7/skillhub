@@ -1,5 +1,6 @@
 use skillhub::config::{AppConfig, McpConfig};
 use skillhub::db::Database;
+use skillhub::skill::{RiskLevel, Skill};
 
 fn temp_db(temp: &tempfile::TempDir) -> (AppConfig, Database) {
     let cfg = AppConfig {
@@ -47,4 +48,34 @@ fn scan_state_round_trip() {
         db.get_scan_signature("/root/a").unwrap().as_deref(),
         Some("sig-1")
     );
+}
+
+#[test]
+fn skill_provenance_round_trip() {
+    let temp = tempfile::tempdir().unwrap();
+    let (_cfg, db) = temp_db(&temp);
+    let skill = Skill {
+        id: "demo".into(),
+        name: "Demo".into(),
+        summary: "Demo summary".into(),
+        description: "Demo description".into(),
+        install_path: temp.path().join("demo"),
+        source_type: "local".into(),
+        source_url: None,
+        entry_file: Some("SKILL.md".into()),
+        readme_file: None,
+        has_scripts: false,
+        required_env: Vec::new(),
+        tags: Vec::new(),
+        detected_capabilities: Vec::new(),
+        risk_level: RiskLevel::Low,
+        last_scanned_at: "now".into(),
+        source_agent: "project".into(),
+        source_root: temp.path().to_string_lossy().to_string(),
+    };
+
+    db.upsert_skill(&skill, &[], &[]).unwrap();
+    let loaded = db.get_skill("demo").unwrap().unwrap();
+    assert_eq!(loaded.source_agent, "project");
+    assert_eq!(loaded.source_root, temp.path().to_string_lossy());
 }

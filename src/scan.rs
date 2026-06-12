@@ -139,6 +139,8 @@ fn inspect_skill_dir(dir: &Path) -> Result<Option<InspectedSkill>> {
         detected_capabilities,
         risk_level,
         last_scanned_at: chrono::Utc::now().to_rfc3339(),
+        source_agent: String::new(),
+        source_root: String::new(),
     };
 
     Ok(Some((skill, files, commands)))
