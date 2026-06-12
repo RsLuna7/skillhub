@@ -329,6 +329,42 @@ fn fenced_code_lines(content: &str) -> Vec<(usize, &str)> {
     out
 }
 
+#[allow(dead_code)]
+fn downgrade(severity: FindingSeverity) -> FindingSeverity {
+    match severity {
+        FindingSeverity::High => FindingSeverity::Medium,
+        FindingSeverity::Medium | FindingSeverity::Low => FindingSeverity::Low,
+    }
+}
+
+#[allow(dead_code)]
+fn destructive_delete_severity(line: &str) -> FindingSeverity {
+    let is_rm =
+        Regex::new(r"(?i)\brm\s+-").expect("audit rule regex must compile");
+    let system_target = Regex::new(
+        r#"(?i)\brm\s+(?:-[a-z]+\s+)*["']?(?:/|~|\$home\b|[a-z]:[\/])"#,
+    )
+    .expect("audit rule regex must compile");
+    if !is_rm.is_match(line) || system_target.is_match(line) {
+        FindingSeverity::High
+    } else {
+        FindingSeverity::Medium
+    }
+}
+
+#[allow(dead_code)]
+fn finding_severity(rule: &AuditRule, line: &str, context: &FileContext) -> FindingSeverity {
+    let base = if rule.id == "destructive-delete" {
+        destructive_delete_severity(line)
+    } else {
+        rule.severity.clone()
+    };
+    match context {
+        FileContext::Documentation => downgrade(base),
+        _ => base,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -366,7 +402,56 @@ mod tests {
 
     #[test]
     fn scannable_lines_uses_all_lines_for_scripts() {
-        let lines = scannable_lines(&FileContext::Executable, "a\nb\n");
+        let lines = scannable_lines(&FileContext::Executable, "a
+b
+");
         assert_eq!(lines, vec![(1, "a"), (2, "b")]);
+    }
+
+    #[test]
+    fn rm_with_relative_or_variable_target_is_medium() {
+        assert_eq!(
+            destructive_delete_severity("rm -rf node_modules"),
+            FindingSeverity::Medium
+        );
+        assert_eq!(
+            destructive_delete_severity("rm -rf \"$APP_DIR\""),
+            FindingSeverity::Medium
+        );
+    }
+
+    #[test]
+    fn rm_with_system_target_is_high() {
+        assert_eq!(
+            destructive_delete_severity("sudo rm -rf /var/data"),
+            FindingSeverity::High
+        );
+        assert_eq!(
+            destructive_delete_severity("rm -rf ~/.config"),
+            FindingSeverity::High
+        );
+        assert_eq!(
+            destructive_delete_severity("rm -rf $HOME/.cache"),
+            FindingSeverity::High
+        );
+    }
+
+    #[test]
+    fn non_rm_deletes_stay_high() {
+        assert_eq!(
+            destructive_delete_severity("Remove-Item -Recurse -Force C:\\data"),
+            FindingSeverity::High
+        );
+        assert_eq!(
+            destructive_delete_severity("del /f important.txt"),
+            FindingSeverity::High
+        );
+    }
+
+    #[test]
+    fn documentation_context_downgrades_one_level() {
+        assert_eq!(downgrade(FindingSeverity::High), FindingSeverity::Medium);
+        assert_eq!(downgrade(FindingSeverity::Medium), FindingSeverity::Low);
+        assert_eq!(downgrade(FindingSeverity::Low), FindingSeverity::Low);
     }
 }
