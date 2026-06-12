@@ -45,6 +45,7 @@ SkillHub gives you one local registry and control plane:
 - See recommended commands without executing them.
 - Preview command execution with a dry-run.
 - Diagnose missing runtime or environment variables, and check agent integrations.
+- Discover skills across Claude, Cursor, Codex, generic XDG locations, and project roots with recorded provenance.
 - Stay safe by default: no silent script execution.
 
 ```text
@@ -56,7 +57,10 @@ SkillHub
         |
         +-- ~/.agents/skills
         +-- ~/.claude/skills
+        +-- ~/.claude/plugins/**/skills
         +-- ~/.codex/skills
+        +-- ~/.codex/plugins/**/skills
+        +-- ~/.cursor/skills
         +-- ./.skills
 ```
 
@@ -160,7 +164,7 @@ Use skillhub to find a writing template.
 ```text
 skillhub setup
 skillhub init
-skillhub scan
+skillhub scan [--force]
 skillhub list
 skillhub search <query> [--json]
 skillhub show <skill-id> [--json]
@@ -206,13 +210,18 @@ Config:  ~/.skillhub/config.toml
 Install: ~/.agents/skills
 ```
 
-Default scan roots:
+Default discovery providers:
 
 ```text
 ~/.agents/skills
 ~/.claude/skills
+~/.claude/plugins/**/skills
 ~/.codex/skills
+~/.codex/plugins/**/skills
+~/.cursor/skills
+~/.config/*/skills
 ./.skills
+./.claude/skills
 ```
 
 Add another folder:
@@ -221,6 +230,12 @@ Add another folder:
 skillhub config add-path /path/to/skills
 skillhub scan
 ```
+
+## Discovery
+
+SkillHub v0.5 uses provider-based discovery instead of a fixed list of scan roots. It expands known per-OS locations for Claude, Cursor, Codex, generic agent folders, and project-local skills, then records `source_agent` for every indexed skill. Duplicate ids are resolved by priority: user-configured roots win over project roots, user-global roots, and plugin-bundled roots.
+
+`skillhub scan` is incremental: unchanged roots are skipped, and `skillhub scan --force` performs a full re-scan. MCP `list_skills` and `search_skills` run the same cheap signature check and refresh stale indexed roots before returning.
 
 ## Trust and Audit
 
@@ -268,6 +283,8 @@ Implemented:
 - Rust single-binary CLI
 - SQLite local index with FTS5 fallback search
 - Local skill scanning with capability detection
+- Provider-based cross-agent discovery with provenance
+- Lazy incremental scan and `scan --force`
 - GitHub skill install
 - `setup`, `search`, `show`, `doctor`, and dry-run command previews
 - Deterministic local skill audits (`skillhub audit`)
@@ -278,6 +295,8 @@ Implemented:
 
 Planned:
 
+- `scan --deep` for opt-in broad discovery
+- Skill root management commands
 - Official MCP SDK implementation
 - Version pinning and lockfiles
 - Stronger supply-chain checks for GitHub skills

@@ -56,7 +56,10 @@ SkillHub
         |
         +-- ~/.agents/skills
         +-- ~/.claude/skills
+        +-- ~/.claude/plugins/**/skills
         +-- ~/.codex/skills
+        +-- ~/.codex/plugins/**/skills
+        +-- ~/.cursor/skills
         +-- ./.skills
 ```
 
@@ -160,7 +163,7 @@ Use skillhub to find a writing template.
 ```text
 skillhub setup
 skillhub init
-skillhub scan
+skillhub scan [--force]
 skillhub list
 skillhub search <query> [--json]
 skillhub show <skill-id> [--json]
@@ -206,13 +209,18 @@ Config:  ~/.skillhub/config.toml
 Install: ~/.agents/skills
 ```
 
-默认扫描目录：
+默认发现 provider：
 
 ```text
 ~/.agents/skills
 ~/.claude/skills
+~/.claude/plugins/**/skills
 ~/.codex/skills
+~/.codex/plugins/**/skills
+~/.cursor/skills
+~/.config/*/skills
 ./.skills
+./.claude/skills
 ```
 
 添加新的 skill 目录：
@@ -221,6 +229,12 @@ Install: ~/.agents/skills
 skillhub config add-path /path/to/skills
 skillhub scan
 ```
+
+## 发现
+
+SkillHub v0.5 不再只依赖固定的 scan roots，而是使用 provider-based discovery：按 OS 展开 Claude、Cursor、Codex、generic agent 目录和项目内 skills，并为每个 skill 记录 `source_agent`。重复的 skill id 按优先级确定性去重：user-config > project > user-global > plugin。
+
+`skillhub scan` 是增量的：未变化的 roots 会被跳过；`skillhub scan --force` 会强制全量重扫。MCP `list_skills` / `search_skills` 也会在返回前做便宜的 signature 检查，并刷新已索引且有变化的 roots。
 
 ## 信任与审计
 
@@ -268,6 +282,8 @@ SkillHub 仍处于 alpha 阶段，适合本地试用和反馈。
 - Rust 单二进制 CLI
 - SQLite 本地索引，支持 FTS5 和 fallback 搜索
 - 本地 skill 扫描和 capability 检测
+- provider-based cross-agent discovery，并记录 `source_agent`
+- lazy incremental scan 和 `skillhub scan --force`
 - 从 GitHub 安装 skill
 - `setup`、`search`、`show`、`doctor` 和 dry-run 命令预览
 - 确定性的本地 skill 审计（`skillhub audit`）
@@ -278,6 +294,8 @@ SkillHub 仍处于 alpha 阶段，适合本地试用和反馈。
 
 计划中：
 
+- `scan --deep` 的可选深度发现
+- skill roots 管理命令
 - 官方 MCP SDK 实现
 - 版本锁定和 lockfile
 - 更强的 GitHub skill 供应链检查

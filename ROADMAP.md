@@ -32,11 +32,20 @@
 
 ## v0.5
 
+- Per-OS provider registry and cross-agent skill discovery.
+- Skill provenance and deterministic priority de-duplication.
+- Lazy incremental re-scan (fresh on access, no daemon).
+- Tightened manifest-based detection.
+
+## v0.6
+
+- Add `scan --deep` for opt-in whole-home discovery.
+- Add `skillhub roots list/add/remove` management commands.
+- Let `connect <agent>` register that agent's skill directory as a scan root.
+- Add `skillhub watch` for optional file-watching mode.
+- Render and publish the README demo GIF.
 - Switch MCP server internals to the official Rust MCP SDK.
-- Improve parsing for `skill.yaml` and common skill frontmatter.
-- Add version pinning for installed GitHub skills.
-- Add lockfile metadata for skill provenance.
-- Add checksum and safety scan reports.
+- Add version pinning, lockfile metadata, checksums, and stronger supply-chain reports.
 - Add release binaries for Windows, macOS, and Linux.
 
 ## Later
