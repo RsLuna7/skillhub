@@ -6,6 +6,7 @@ pub mod db;
 pub mod demo;
 pub mod doctor;
 pub mod install;
+pub mod manifest;
 pub mod mcp;
 pub mod providers;
 pub mod run;
