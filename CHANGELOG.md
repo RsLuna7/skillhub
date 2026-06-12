@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0 - 2026-06-12
+
+- Add `skillhub setup` for first-run initialization, scan, diagnostics, and MCP snippets.
+- Add `skillhub agent-instructions` for reusable agent guidance.
+- Add `skillhub run <skill-id> <command-index> --dry-run` for safe command previews.
+- Add `search --json` and `show --json`.
+- Improve `show` output around how to use a skill.
+- Add detected capabilities and improved search for web-search style queries.
+- Add MCP `get_skill` next-action guidance.
+
 ## 0.1.0 - 2026-06-12
 
 Initial alpha release.

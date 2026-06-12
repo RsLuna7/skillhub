@@ -10,12 +10,19 @@
 
 ## v0.2
 
+- Add first-run `setup`.
+- Add agent instruction snippets.
+- Add capability detection and better search.
+- Add dry-run command previews.
+- Improve `show` output for humans.
+
+## v0.3
+
 - Switch MCP server internals to the official Rust MCP SDK.
-- Add better full-text search using SQLite FTS5.
 - Improve parsing for `skill.yaml` and common skill frontmatter.
 - Add `skillhub doctor --fix-suggestions`.
 
-## v0.3
+## v0.4
 
 - Add version pinning for installed GitHub skills.
 - Add lockfile metadata for skill provenance.

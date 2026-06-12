@@ -34,6 +34,7 @@ impl Database {
                 has_scripts INTEGER NOT NULL,
                 required_env_json TEXT NOT NULL,
                 tags_json TEXT NOT NULL,
+                detected_capabilities_json TEXT NOT NULL DEFAULT '[]',
                 risk_level TEXT NOT NULL,
                 last_scanned_at TEXT NOT NULL,
                 created_at TEXT NOT NULL,
@@ -82,6 +83,23 @@ impl Database {
             );
             "#,
         )?;
+        let _ = self.conn.execute(
+            "ALTER TABLE skills ADD COLUMN detected_capabilities_json TEXT NOT NULL DEFAULT '[]'",
+            [],
+        );
+        let _ = self.conn.execute_batch(
+            r#"
+            CREATE VIRTUAL TABLE IF NOT EXISTS skill_search_fts USING fts5(
+                skill_id UNINDEXED,
+                id,
+                name,
+                summary,
+                description,
+                tags,
+                capabilities
+            );
+            "#,
+        );
         Ok(())
     }
 
@@ -96,9 +114,9 @@ impl Database {
             r#"
             INSERT INTO skills (
                 id, name, summary, description, install_path, source_type, source_url, entry_file,
-                readme_file, has_scripts, required_env_json, tags_json, risk_level,
-                last_scanned_at, created_at, updated_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
+                readme_file, has_scripts, required_env_json, tags_json, detected_capabilities_json,
+                risk_level, last_scanned_at, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
             ON CONFLICT(id) DO UPDATE SET
                 name=excluded.name,
                 summary=excluded.summary,
@@ -111,6 +129,7 @@ impl Database {
                 has_scripts=excluded.has_scripts,
                 required_env_json=excluded.required_env_json,
                 tags_json=excluded.tags_json,
+                detected_capabilities_json=excluded.detected_capabilities_json,
                 risk_level=excluded.risk_level,
                 last_scanned_at=excluded.last_scanned_at,
                 updated_at=excluded.updated_at
@@ -128,6 +147,7 @@ impl Database {
                 if skill.has_scripts { 1 } else { 0 },
                 serde_json::to_string(&skill.required_env)?,
                 serde_json::to_string(&skill.tags)?,
+                serde_json::to_string(&skill.detected_capabilities)?,
                 skill.risk_level.as_str(),
                 skill.last_scanned_at,
                 now,
@@ -167,6 +187,7 @@ impl Database {
                 ],
             )?;
         }
+        let _ = self.sync_fts(skill);
         Ok(())
     }
 
@@ -178,18 +199,56 @@ impl Database {
     }
 
     pub fn search_skills(&self, query: &str) -> Result<Vec<Skill>> {
-        let pattern = format!("%{}%", query.to_lowercase());
+        if let Ok(results) = self.search_skills_fts(query)
+            && !results.is_empty()
+        {
+            return Ok(results);
+        }
+        self.search_skills_like(query)
+    }
+
+    fn search_skills_fts(&self, query: &str) -> Result<Vec<Skill>> {
+        let fts_query = fts_query(query);
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT skills.*
+            FROM skill_search_fts
+            JOIN skills ON skills.id = skill_search_fts.skill_id
+            WHERE skill_search_fts MATCH ?1
+            ORDER BY bm25(skill_search_fts)
+            "#,
+        )?;
+        let rows = stmt.query_map([fts_query], skill_from_row)?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(Into::into)
+    }
+
+    fn search_skills_like(&self, query: &str) -> Result<Vec<Skill>> {
+        let patterns = expanded_terms(query)
+            .into_iter()
+            .map(|term| format!("%{}%", term.to_lowercase()))
+            .collect::<Vec<_>>();
+        let pattern_refs = patterns.iter().map(String::as_str).collect::<Vec<_>>();
         let mut stmt = self.conn.prepare(
             r#"
             SELECT * FROM skills
             WHERE lower(id) LIKE ?1 OR lower(name) LIKE ?1 OR lower(summary) LIKE ?1
                OR lower(description) LIKE ?1 OR lower(tags_json) LIKE ?1
+               OR lower(detected_capabilities_json) LIKE ?1
             ORDER BY id
             "#,
         )?;
-        let rows = stmt.query_map([pattern], skill_from_row)?;
-        rows.collect::<rusqlite::Result<Vec<_>>>()
-            .map_err(Into::into)
+        let mut out = Vec::new();
+        for pattern in pattern_refs {
+            let rows = stmt.query_map([pattern], skill_from_row)?;
+            for row in rows {
+                let skill = row?;
+                if !out.iter().any(|existing: &Skill| existing.id == skill.id) {
+                    out.push(skill);
+                }
+            }
+        }
+        Ok(out)
     }
 
     pub fn get_skill(&self, skill_id: &str) -> Result<Option<Skill>> {
@@ -261,11 +320,37 @@ impl Database {
             .optional()
             .map_err(Into::into)
     }
+
+    fn sync_fts(&self, skill: &Skill) -> Result<()> {
+        self.conn.execute(
+            "DELETE FROM skill_search_fts WHERE skill_id = ?1",
+            [&skill.id],
+        )?;
+        self.conn.execute(
+            r#"
+            INSERT INTO skill_search_fts (skill_id, id, name, summary, description, tags, capabilities)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            "#,
+            params![
+                skill.id,
+                skill.id,
+                skill.name,
+                skill.summary,
+                skill.description,
+                skill.tags.join(" "),
+                skill.detected_capabilities.join(" "),
+            ],
+        )?;
+        Ok(())
+    }
 }
 
 fn skill_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Skill> {
     let required_env_json: String = row.get("required_env_json")?;
     let tags_json: String = row.get("tags_json")?;
+    let detected_capabilities_json: String = row
+        .get("detected_capabilities_json")
+        .unwrap_or_else(|_| "[]".to_string());
     let risk: String = row.get("risk_level")?;
     let install_path: String = row.get("install_path")?;
     Ok(Skill {
@@ -281,7 +366,43 @@ fn skill_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Skill> {
         has_scripts: row.get::<_, i64>("has_scripts")? == 1,
         required_env: serde_json::from_str(&required_env_json).unwrap_or_default(),
         tags: serde_json::from_str(&tags_json).unwrap_or_default(),
+        detected_capabilities: serde_json::from_str(&detected_capabilities_json)
+            .unwrap_or_default(),
         risk_level: RiskLevel::parse(&risk),
         last_scanned_at: row.get("last_scanned_at")?,
     })
+}
+
+fn expanded_terms(query: &str) -> Vec<String> {
+    let lower = query.to_lowercase();
+    let mut terms = vec![lower.clone()];
+    if lower.contains("联网") || lower.contains("搜索") || lower.contains("web") {
+        terms.extend(["web_search".into(), "search".into(), "web".into()]);
+    }
+    if lower.contains("写") || lower.contains("文档") || lower.contains("write") {
+        terms.extend(["writing".into(), "documentation".into()]);
+    }
+    if lower.contains("pdf") {
+        terms.push("pdf".into());
+    }
+    if lower.contains("表格") || lower.contains("excel") || lower.contains("spreadsheet") {
+        terms.extend(["spreadsheet".into(), "excel".into()]);
+    }
+    terms.sort();
+    terms.dedup();
+    terms
+}
+
+fn fts_query(query: &str) -> String {
+    expanded_terms(query)
+        .into_iter()
+        .flat_map(|term| {
+            term.split(|ch: char| !ch.is_alphanumeric() && ch != '_')
+                .filter(|part| !part.is_empty())
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .map(|term| format!("\"{term}\""))
+        .collect::<Vec<_>>()
+        .join(" OR ")
 }

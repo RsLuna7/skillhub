@@ -121,7 +121,7 @@ fn call_tool(cfg: &AppConfig, db: &Database, name: &str, args: &Value) -> Result
         "skillhub.list_skills" => Ok(json!({ "skills": db.list_skills()? })),
         "skillhub.get_skill" => {
             let skill_id = required_str(args, "skill_id")?;
-            Ok(json!({ "skill": db.get_skill(skill_id)? }))
+            Ok(json!({ "skill": crate::search::usage_summary(db, skill_id)? }))
         }
         "skillhub.get_skill_file" => {
             let skill_id = required_str(args, "skill_id")?;

@@ -1,10 +1,9 @@
 # Use SkillHub with Codex
 
-Install SkillHub and scan your skills:
+Install SkillHub and run setup:
 
 ```bash
-skillhub init
-skillhub scan
+skillhub setup
 ```
 
 Add it to Codex:
@@ -25,6 +24,12 @@ Restart Codex, then ask:
 
 ```text
 Use skillhub to search my local skills for web search.
+```
+
+Recommended instruction for Codex:
+
+```bash
+skillhub agent-instructions codex
 ```
 
 If `skillhub` is not on PATH, use the absolute path to the binary in `command`.

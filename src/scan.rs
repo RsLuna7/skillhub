@@ -107,6 +107,12 @@ fn inspect_skill_dir(dir: &Path) -> Result<Option<InspectedSkill>> {
         skill_text.as_deref().unwrap_or(""),
         readme_text.as_deref().unwrap_or(""),
     );
+    let detected_capabilities = detect_capabilities(
+        dir,
+        &scripts,
+        skill_text.as_deref().unwrap_or(""),
+        readme_text.as_deref().unwrap_or(""),
+    );
     let files = collect_files(dir, &id);
     let commands = scripts
         .iter()
@@ -130,6 +136,7 @@ fn inspect_skill_dir(dir: &Path) -> Result<Option<InspectedSkill>> {
         has_scripts: !scripts.is_empty(),
         required_env,
         tags: Vec::new(),
+        detected_capabilities,
         risk_level,
         last_scanned_at: chrono::Utc::now().to_rfc3339(),
     };
@@ -248,6 +255,98 @@ fn infer_risk(
     RiskLevel::Low
 }
 
+fn detect_capabilities(
+    dir: &Path,
+    scripts: &[PathBuf],
+    skill_text: &str,
+    readme_text: &str,
+) -> Vec<String> {
+    let mut capabilities = BTreeSet::new();
+    let script_names = scripts
+        .iter()
+        .filter_map(|path| path.file_name().and_then(|name| name.to_str()))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let haystack = format!(
+        "{}\n{}\n{}\n{}",
+        dir.file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default(),
+        skill_text,
+        readme_text,
+        script_names
+    )
+    .to_lowercase();
+
+    if contains_any(
+        &haystack,
+        &[
+            "web search",
+            "search engine",
+            "anysearch",
+            "browser search",
+            "联网",
+            "搜索",
+        ],
+    ) {
+        capabilities.insert("web_search".to_string());
+    }
+    if contains_any(
+        &haystack,
+        &["file", "filesystem", "read file", "write file", "文件"],
+    ) {
+        capabilities.insert("file_tools".to_string());
+    }
+    if contains_any(
+        &haystack,
+        &["writing", "documentation", "report", "文档", "写作"],
+    ) {
+        capabilities.insert("writing".to_string());
+    }
+    if contains_any(
+        &haystack,
+        &["code generation", "coding", "programming", "代码"],
+    ) {
+        capabilities.insert("coding".to_string());
+    }
+    if contains_any(&haystack, &["browser", "playwright", "chrome", "浏览器"]) {
+        capabilities.insert("browser".to_string());
+    }
+    if contains_any(&haystack, &["pdf"]) {
+        capabilities.insert("pdf".to_string());
+    }
+    if contains_any(&haystack, &["spreadsheet", "excel", "xlsx", "csv", "表格"]) {
+        capabilities.insert("spreadsheet".to_string());
+    }
+    if contains_any(&haystack, &["image", "png", "jpg", "jpeg", "图片", "图像"]) {
+        capabilities.insert("image".to_string());
+    }
+    if contains_any(&haystack, &["cad", "solidworks", "step", "机械"]) {
+        capabilities.insert("cad".to_string());
+    }
+    if contains_any(
+        &haystack,
+        &["deploy", "release", "github actions", "发布", "部署"],
+    ) {
+        capabilities.insert("deployment".to_string());
+    }
+    capabilities.into_iter().collect()
+}
+
+fn contains_any(haystack: &str, needles: &[&str]) -> bool {
+    let tokens = haystack
+        .split(|ch: char| !ch.is_ascii_alphanumeric() && ch != '_')
+        .filter(|part| !part.is_empty())
+        .collect::<BTreeSet<_>>();
+    needles.iter().any(|needle| {
+        if needle.is_ascii() && !needle.contains(' ') {
+            tokens.contains(needle)
+        } else {
+            haystack.contains(needle)
+        }
+    })
+}
+
 fn collect_files(dir: &Path, skill_id: &str) -> Vec<SkillFile> {
     let mut files = Vec::new();
     for name in [
@@ -310,7 +409,7 @@ fn command_for_script(
         command,
         args: vec!["--help".to_string()],
         description: format!(
-            "Recommended command for {relative}; SkillHub v1 does not execute it."
+            "Recommended command for {relative}; SkillHub v0.2 does not execute it."
         ),
         source_file: relative,
         risk_level: risk.clone(),
