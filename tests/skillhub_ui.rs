@@ -25,6 +25,7 @@ fn test_state(temp: &tempfile::TempDir) -> UiState {
     db.migrate().unwrap();
     UiState {
         db_path: cfg.index_path(),
+        csrf_token: "test-csrf".into(),
         cfg,
     }
 }
@@ -55,6 +56,7 @@ fn seed_two_skills(temp: &tempfile::TempDir) -> UiState {
     trust::block(&db, "risky-one", Some("review pending".into())).unwrap();
     UiState {
         db_path: cfg.index_path(),
+        csrf_token: "test-csrf".into(),
         cfg,
     }
 }
@@ -89,7 +91,12 @@ async fn dashboard_summarizes_skills_source_risk_and_trust() {
     assert!(text.contains("blocked"));
 }
 
-async fn request(state: UiState, method: &str, uri: &str) -> (StatusCode, String) {
+async fn request(
+    state: UiState,
+    method: &str,
+    uri: &str,
+    body: Option<&str>,
+) -> (StatusCode, String) {
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
         .await
         .unwrap();
@@ -100,10 +107,13 @@ async fn request(state: UiState, method: &str, uri: &str) -> (StatusCode, String
 
     let method = method.to_string();
     let uri = uri.to_string();
+    let body = body.map(str::to_string);
     let response = tokio::task::spawn_blocking(move || {
         let mut stream = std::net::TcpStream::connect(addr).unwrap();
+        let body = body.unwrap_or_default();
         let request = format!(
-            "{method} {uri} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
+            "{method} {uri} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: {}\r\n\r\n{body}",
+            body.len()
         );
         stream.write_all(request.as_bytes()).unwrap();
 
@@ -132,11 +142,17 @@ async fn request(state: UiState, method: &str, uri: &str) -> (StatusCode, String
 }
 
 async fn get_text(state: UiState, uri: &str) -> (StatusCode, String) {
-    request(state, "GET", uri).await
+    request(state, "GET", uri, None).await
 }
 
+/// POST with the test CSRF token, the way a rendered form would submit it.
 async fn post(state: UiState, uri: &str) -> StatusCode {
-    request(state, "POST", uri).await.0
+    request(state, "POST", uri, Some("csrf=test-csrf")).await.0
+}
+
+/// POST without a valid CSRF token, the way a cross-origin forgery would.
+async fn post_raw(state: UiState, uri: &str, body: Option<&str>) -> StatusCode {
+    request(state, "POST", uri, body).await.0
 }
 
 #[tokio::test]
@@ -196,6 +212,7 @@ async fn scan_actions_redirect_and_update_index() {
     db.migrate().unwrap();
     let state = UiState {
         db_path: cfg.index_path(),
+        csrf_token: "test-csrf".into(),
         cfg: cfg.clone(),
     };
 
@@ -219,6 +236,36 @@ async fn dashboard_can_show_scan_notice() {
     let (status, text) = get_text(test_state(&temp), "/?notice=Scanned%201%20root").await;
     assert_eq!(status, StatusCode::OK);
     assert!(text.contains("Scanned 1 root"));
+}
+
+#[tokio::test]
+async fn post_without_csrf_token_is_forbidden_and_does_not_mutate() {
+    let temp = tempfile::tempdir().unwrap();
+    let state = seed_two_skills(&temp);
+    let cfg = state.cfg.clone();
+
+    // No body / no token — the shape a cross-origin forgery would take.
+    let status = post_raw(state.clone(), "/skills/safe-one/trust/block", None).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    // Wrong token is also rejected.
+    let status = post_raw(state, "/skills/safe-one/trust/block", Some("csrf=wrong")).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    // Trust state is unchanged after the rejected requests.
+    assert_eq!(
+        trust::trust_status(&Database::open(&cfg).unwrap(), "safe-one").unwrap(),
+        trust::TrustStatus::Untrusted
+    );
+}
+
+#[tokio::test]
+async fn unknown_skill_renders_html_error_page() {
+    let temp = tempfile::tempdir().unwrap();
+    let (status, text) = get_text(seed_two_skills(&temp), "/skills/missing").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(text.contains("Skill not found: missing"));
+    assert!(text.contains("Back to dashboard")); // rendered as the styled error page
 }
 
 #[tokio::test]

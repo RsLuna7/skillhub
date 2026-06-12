@@ -1,0 +1,12 @@
+{% extends "ui/layout.html" %}
+
+{% block title %}Error - SkillHub{% endblock %}
+{% block eyebrow %}Error {{ status }}{% endblock %}
+{% block heading %}Something went wrong{% endblock %}
+
+{% block content %}
+<section class="metric-band">
+  <p class="notice">{{ message }}</p>
+</section>
+<p><a href="/">Back to dashboard</a></p>
+{% endblock %}

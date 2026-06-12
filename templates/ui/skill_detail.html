@@ -26,15 +26,19 @@
     {% endmatch %}
     <div class="actions">
       <form method="post" action="/skills/{{ summary.skill.id }}/audit">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
         <button type="submit">Audit</button>
       </form>
       <form method="post" action="/skills/{{ summary.skill.id }}/trust/allow">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
         <button type="submit">Allow</button>
       </form>
       <form method="post" action="/skills/{{ summary.skill.id }}/trust/block">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
         <button type="submit">Block</button>
       </form>
       <form method="post" action="/skills/{{ summary.skill.id }}/trust/reset">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
         <button type="submit">Reset</button>
       </form>
     </div>
