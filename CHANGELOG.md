@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0 - 2026-06-12
+
+Adoption release: trustworthy audits, one-command onboarding, and an instant demo.
+
+- Audit rules v2: context-aware scanning. Markdown prose is never scanned, markdown code blocks are scanned at downgraded severity, and `rm` deletes are only critical when targeting system paths. Documentation can at worst `warn`, never `fail`.
+- Add `skillhub connect codex|claude|cursor [--dry-run]` to register the MCP server in agent configs, with automatic backups.
+- Add `skillhub demo`, a sandboxed 30-second guided tour (scan → audit → block → MCP view) that touches nothing outside a temp folder.
+- Add a VHS tape (`demo/demo.tape`) and README demo GIF.
+
+
 ## 0.3.0 - 2026-06-12
 
 SkillHub is now a local control plane for AI skills: you decide which skills agents may see.

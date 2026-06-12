@@ -26,6 +26,12 @@
 
 ## v0.4
 
+- Context-aware audit rules v2 with far fewer false positives.
+- One-command agent onboarding (`skillhub connect`).
+- Sandboxed `skillhub demo` and README demo GIF.
+
+## v0.5
+
 - Switch MCP server internals to the official Rust MCP SDK.
 - Improve parsing for `skill.yaml` and common skill frontmatter.
 - Add version pinning for installed GitHub skills.
