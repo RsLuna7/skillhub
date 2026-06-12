@@ -100,10 +100,31 @@ impl Database {
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS skill_sources (
+                skill_id TEXT NOT NULL,
+                agent TEXT NOT NULL,
+                root TEXT NOT NULL,
+                priority INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (skill_id, root)
+            );
+            CREATE TABLE IF NOT EXISTS scan_state (
+                root TEXT PRIMARY KEY,
+                signature TEXT NOT NULL,
+                last_scanned_at TEXT NOT NULL
+            );
             "#,
         )?;
         let _ = self.conn.execute(
             "ALTER TABLE skills ADD COLUMN detected_capabilities_json TEXT NOT NULL DEFAULT '[]'",
+            [],
+        );
+        let _ = self.conn.execute(
+            "ALTER TABLE skills ADD COLUMN source_agent TEXT NOT NULL DEFAULT ''",
+            [],
+        );
+        let _ = self.conn.execute(
+            "ALTER TABLE skills ADD COLUMN source_root TEXT NOT NULL DEFAULT ''",
             [],
         );
         let _ = self.conn.execute_batch(
@@ -416,6 +437,61 @@ impl Database {
             )
             .optional()
             .map_err(Into::into)
+    }
+
+    pub fn replace_skill_sources(
+        &self,
+        skill_id: &str,
+        sources: &[(String, String, u8)],
+    ) -> Result<()> {
+        let now = chrono::Utc::now().to_rfc3339();
+        self.conn
+            .execute("DELETE FROM skill_sources WHERE skill_id = ?1", [skill_id])?;
+        for (agent, root, priority) in sources {
+            self.conn.execute(
+                "INSERT INTO skill_sources (skill_id, agent, root, priority, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![skill_id, agent, root, *priority as i64, now],
+            )?;
+        }
+        Ok(())
+    }
+
+    pub fn get_skill_sources(&self, skill_id: &str) -> Result<Vec<(String, String, u8)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT agent, root, priority FROM skill_sources WHERE skill_id = ?1 ORDER BY priority DESC, root",
+        )?;
+        let rows = stmt.query_map([skill_id], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, i64>(2)? as u8,
+            ))
+        })?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(Into::into)
+    }
+
+    pub fn get_scan_signature(&self, root: &str) -> Result<Option<String>> {
+        self.conn
+            .query_row(
+                "SELECT signature FROM scan_state WHERE root = ?1",
+                [root],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(Into::into)
+    }
+
+    pub fn set_scan_signature(&self, root: &str, signature: &str) -> Result<()> {
+        let now = chrono::Utc::now().to_rfc3339();
+        self.conn.execute(
+            r#"
+            INSERT INTO scan_state (root, signature, last_scanned_at) VALUES (?1, ?2, ?3)
+            ON CONFLICT(root) DO UPDATE SET signature=excluded.signature, last_scanned_at=excluded.last_scanned_at
+            "#,
+            params![root, signature, now],
+        )?;
+        Ok(())
     }
 
     fn sync_fts(&self, skill: &Skill) -> Result<()> {
