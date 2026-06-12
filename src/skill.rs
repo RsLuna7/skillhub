@@ -22,7 +22,7 @@ pub struct Skill {
     pub last_scanned_at: String,
     #[serde(default)]
     pub source_agent: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing)]
     pub source_root: String,
 }
 

@@ -118,9 +118,13 @@ fn call_tool(cfg: &AppConfig, db: &Database, name: &str, args: &Value) -> Result
     match name {
         "skillhub.search_skills" => {
             let query = required_str(args, "query")?;
+            refresh_stale_roots(cfg, db)?;
             Ok(json!({ "results": without_blocked(db, db.search_skills(query)?)? }))
         }
-        "skillhub.list_skills" => Ok(json!({ "skills": without_blocked(db, db.list_skills()?)? })),
+        "skillhub.list_skills" => {
+            refresh_stale_roots(cfg, db)?;
+            Ok(json!({ "skills": without_blocked(db, db.list_skills()?)? }))
+        }
         "skillhub.get_skill" => {
             let skill_id = required_str(args, "skill_id")?;
             require_not_blocked(db, skill_id)?;
@@ -158,6 +162,28 @@ fn call_tool(cfg: &AppConfig, db: &Database, name: &str, args: &Value) -> Result
         }
         _ => bail!("unknown tool: {name}"),
     }
+}
+
+/// Cheap freshness check: consider all discovered roots, but only re-scan roots
+/// already known to scan_state. `scan_roots` then stat-checks signatures and
+/// walks only roots whose signature changed.
+fn refresh_stale_roots(cfg: &AppConfig, db: &Database) -> Result<()> {
+    let home = crate::config::home_dir();
+    let cwd = std::env::current_dir().unwrap_or_else(|_| home.clone());
+    let roots = cfg
+        .discovered_roots(&home, &cwd)
+        .into_iter()
+        .filter_map(|root| {
+            let key = root.path.to_string_lossy().to_string();
+            match db.get_scan_signature(&key) {
+                Ok(Some(_)) => Some(Ok(root)),
+                Ok(None) => None,
+                Err(err) => Some(Err(err)),
+            }
+        })
+        .collect::<Result<Vec<_>>>()?;
+    crate::scan::scan_roots(cfg, db, &roots, false)?;
+    Ok(())
 }
 
 fn without_blocked(db: &Database, skills: Vec<Skill>) -> Result<Vec<Skill>> {

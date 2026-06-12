@@ -210,6 +210,64 @@ fn mcp_hides_and_refuses_blocked_skills() {
 }
 
 #[test]
+fn mcp_list_includes_source_agent() {
+    let temp = tempfile::tempdir().unwrap();
+    let (cfg, db) = scanned_db(&temp);
+    let listed = call_tool(&cfg, &db, "skillhub.list_skills", json!({})).unwrap();
+    let first = &listed["skills"].as_array().unwrap()[0];
+    assert!(first["source_agent"].is_string());
+}
+
+#[test]
+fn mcp_list_refreshes_stale_configured_root() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("skills");
+    let one = root.join("one");
+    std::fs::create_dir_all(&one).unwrap();
+    std::fs::write(
+        one.join("SKILL.md"),
+        "---\nname: One\ndescription: first\n---\n# One\n",
+    )
+    .unwrap();
+
+    let cfg = AppConfig {
+        data_dir: temp.path().join("data").to_string_lossy().to_string(),
+        default_install_dir: temp.path().join("install").to_string_lossy().to_string(),
+        scan_roots: vec![root.to_string_lossy().to_string()],
+        mcp: skillhub::config::McpConfig {
+            max_file_chars: 12_000,
+        },
+        config_path: temp.path().join("config.toml"),
+    };
+    let db = Database::open(&cfg).unwrap();
+    db.migrate().unwrap();
+    let roots = vec![skillhub::providers::DiscoveredRoot {
+        agent: "user-config".into(),
+        path: root.clone(),
+        priority: skillhub::providers::priority::USER_CONFIG,
+    }];
+    scan_roots(&cfg, &db, &roots, false).unwrap();
+
+    let two = root.join("two");
+    std::fs::create_dir_all(&two).unwrap();
+    std::fs::write(
+        two.join("SKILL.md"),
+        "---\nname: Two\ndescription: second\n---\n# Two\n",
+    )
+    .unwrap();
+
+    let listed = call_tool(&cfg, &db, "skillhub.list_skills", json!({})).unwrap();
+    let ids = listed["skills"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|skill| skill["id"].as_str().unwrap().to_string())
+        .collect::<Vec<_>>();
+    assert!(ids.contains(&"one".to_string()));
+    assert!(ids.contains(&"two".to_string()));
+}
+
+#[test]
 fn doctor_agent_reports_integration_state_from_home_dir() {
     let temp = tempfile::tempdir().unwrap();
     let home = temp.path();
