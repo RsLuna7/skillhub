@@ -52,3 +52,26 @@ fn roots_are_deduplicated_by_path_keeping_highest_priority() {
     assert_eq!(matches.len(), 1, "duplicate path must collapse to one root");
     assert_eq!(matches[0].priority, priority::USER_CONFIG);
 }
+
+#[test]
+fn config_discovered_roots_combine_providers_and_user_roots() {
+    use skillhub::config::AppConfig;
+    let cfg = AppConfig {
+        data_dir: "/tmp/data".into(),
+        default_install_dir: "/tmp/install".into(),
+        scan_roots: vec!["/opt/custom/skills".into()],
+        mcp: skillhub::config::McpConfig {
+            max_file_chars: 12000,
+        },
+        config_path: std::path::PathBuf::from("/tmp/config.toml"),
+    };
+    let home = Path::new("/home/u");
+    let cwd = Path::new("/home/u/project");
+    let roots = cfg.discovered_roots(home, cwd);
+    assert!(
+        roots
+            .iter()
+            .any(|r| r.agent == "user-config" && r.path == Path::new("/opt/custom/skills"))
+    );
+    assert!(roots.iter().any(|r| r.agent == "claude"));
+}

@@ -27,13 +27,7 @@ impl Default for AppConfig {
         Self {
             data_dir,
             default_install_dir,
-            scan_roots: vec![
-                std::env::var("SKILLHUB_INSTALL_DIR")
-                    .unwrap_or_else(|_| "~/.agents/skills".to_string()),
-                "~/.claude/skills".to_string(),
-                "~/.codex/skills".to_string(),
-                ".skills".to_string(),
-            ],
+            scan_roots: Vec::new(),
             mcp: McpConfig {
                 max_file_chars: 12_000,
             },
@@ -87,6 +81,16 @@ impl AppConfig {
             .filter_map(|root| expand_path(root).ok())
             .collect()
     }
+
+    /// Provider-supplied roots plus user `scan_roots` extras, deduped by path.
+    pub fn discovered_roots(
+        &self,
+        home: &Path,
+        cwd: &Path,
+    ) -> Vec<crate::providers::DiscoveredRoot> {
+        let extra = self.expanded_scan_roots();
+        crate::providers::ProviderRegistry::with_builtins().all_roots(home, cwd, &extra)
+    }
 }
 
 pub fn init_config() -> Result<AppConfig> {
@@ -106,6 +110,9 @@ pub fn expand_path(input: &str) -> Result<PathBuf> {
     }
     if let Some(rest) = input.strip_prefix("~\\") {
         return Ok(home_dir().join(rest));
+    }
+    if input.starts_with('/') {
+        return Ok(PathBuf::from(input));
     }
     let path = Path::new(input);
     if path.is_absolute() {
