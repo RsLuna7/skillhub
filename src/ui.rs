@@ -38,6 +38,8 @@ pub fn run_ui(cfg: AppConfig, port: u16, open: bool) -> Result<()> {
         csrf_token: generate_csrf_token(),
         cfg,
     };
+    // Migrate once at startup; request handlers just open a connection.
+    Database::open(&state.cfg)?.migrate()?;
     let runtime = tokio::runtime::Runtime::new()?;
     runtime.block_on(async move {
         let listener = tokio::net::TcpListener::bind(("127.0.0.1", port)).await?;
@@ -367,9 +369,8 @@ async fn css() -> Response {
 }
 
 fn open_db(state: &UiState) -> Result<Database> {
-    let db = Database::open(&state.cfg)?;
-    db.migrate()?;
-    Ok(db)
+    // Schema is migrated once at startup (run_ui); per-request we only open.
+    Database::open(&state.cfg)
 }
 
 fn run_scan(state: &UiState, force: bool) -> Result<scan::ScanReport, UiError> {
