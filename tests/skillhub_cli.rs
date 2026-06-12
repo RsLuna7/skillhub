@@ -21,3 +21,25 @@ fn setup_creates_isolated_config_and_prints_mcp_config() {
     assert!(stdout.contains("\"mcpServers\""));
     assert!(stdout.contains("first call skillhub.search_skills"));
 }
+
+
+#[test]
+fn demo_runs_sandboxed_tour() {
+    let temp = tempfile::tempdir().unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_skillhub"))
+        .arg("demo")
+        .env("SKILLHUB_DATA_DIR", temp.path().join("data"))
+        .env("SKILLHUB_INSTALL_DIR", temp.path().join("skills"))
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("indexed 2 skills"));
+    assert!(stdout.contains("sketchy-cleaner: fail"));
+    assert!(stdout.contains("hello-notes: pass"));
+    assert!(stdout.contains("sketchy-cleaner: blocked"));
+    assert!(stdout.contains("visible skills: hello-notes"));
+    // The demo must not create the real data dir passed via env.
+    assert!(!temp.path().join("data").exists());
+}

@@ -1,6 +1,6 @@
 use crate::config::{AppConfig, init_config};
 use crate::db::Database;
-use crate::{audit, connect, doctor, install, mcp, run as skill_run, scan, search, setup, trust};
+use crate::{audit, connect, demo, doctor, install, mcp, run as skill_run, scan, search, setup, trust};
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 
@@ -46,6 +46,7 @@ enum Command {
         #[arg(long)]
         dry_run: bool,
     },
+    Demo,
     Mcp,
     McpConfig,
     AgentInstructions {
@@ -232,6 +233,9 @@ pub fn run(cli: Cli) -> Result<()> {
                 println!();
                 println!("{}", doctor::doctor_agent(&home, &agent)?);
             }
+        }
+        Command::Demo => {
+            demo::run_demo()?;
         }
         Command::Mcp => {
             let cfg = AppConfig::load_or_init()?;

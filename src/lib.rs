@@ -3,6 +3,7 @@ pub mod cli;
 pub mod config;
 pub mod connect;
 pub mod db;
+pub mod demo;
 pub mod doctor;
 pub mod install;
 pub mod mcp;
