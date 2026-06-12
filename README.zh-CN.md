@@ -96,7 +96,7 @@ How to use it
   Read SKILL.md first, then inspect commands if needed.
 
 $ skillhub audit template-skill
-template-skill: pass (0 findings, rules v1)
+template-skill: pass (0 findings, rules v2)
 
 $ skillhub trust block risky-skill --reason "review pending"
 risky-skill: blocked
@@ -176,6 +176,8 @@ skillhub trust list [--json]
 skillhub trust allow <skill-id>
 skillhub trust block <skill-id> [--reason <text>]
 skillhub trust reset <skill-id>
+skillhub connect codex|claude|cursor [--dry-run]
+skillhub demo
 skillhub doctor [skill-id] [--json]
 skillhub doctor agents|codex|claude|cursor [--json]
 skillhub install <owner/repo | github-url>
@@ -237,7 +239,7 @@ skillhub audit
 skillhub audit some-skill --json
 ```
 
-审计会标记这些模式：把下载内容直接管道进 shell、破坏性删除、动态代码执行、硬编码密钥、`sudo`、混淆代码，以及明文 HTTP 端点。结果保存在本地 SQLite 索引中，并出现在 `skillhub show` 和 MCP `get_skill` 里。
+审计会标记这些模式：把下载内容直接管道进 shell、破坏性删除、动态代码执行、硬编码密钥、`sudo`、混淆代码，以及明文 HTTP 端点。v2 规则带上下文感知以降低误报：markdown 正文永远不扫描（*提到* `rm -rf` 的文档不是攻击）、markdown 代码块按降级严重度扫描、`rm` 只有在指向 `/`、`~` 这类系统路径时才算严重。结果保存在本地 SQLite 索引中，并出现在 `skillhub show` 和 MCP `get_skill` 里。
 
 决定 agents 能看到什么：
 

@@ -13,28 +13,21 @@ It scans your existing skill folders, indexes `SKILL.md` packages, installs skil
 
 ```bash
 cargo install --git https://github.com/RsLuna7/skillhub
+skillhub demo
+```
+
+`skillhub demo` is a 30-second sandboxed tour: it scans two sample skills, audits them with local rules, blocks the risky one, and shows you exactly what MCP clients see afterwards. Nothing outside a temp folder is touched.
+
+![SkillHub demo](demo/skillhub-demo.gif)
+
+Then wire SkillHub into your agent with one command:
+
+```bash
 skillhub setup
+skillhub connect codex    # or: claude, cursor
 ```
 
-Connect it to any MCP client:
-
-```json
-{
-  "mcpServers": {
-    "skillhub": {
-      "command": "skillhub",
-      "args": ["mcp"]
-    }
-  }
-}
-```
-
-Try a general-purpose search:
-
-```text
-Use skillhub to find a template skill.
-```
-
+`connect` backs up the agent config before editing it; use `--dry-run` to preview the change without writing anything.
 ## Why
 
 Skills are becoming reusable packages: instructions, scripts, references, templates, and troubleshooting notes. The problem is that every AI tool stores and discovers them differently.
@@ -96,7 +89,7 @@ How to use it
   Read SKILL.md first, then inspect commands if needed.
 
 $ skillhub audit template-skill
-template-skill: pass (0 findings, rules v1)
+template-skill: pass (0 findings, rules v2)
 
 $ skillhub trust block risky-skill --reason "review pending"
 risky-skill: blocked
@@ -176,6 +169,8 @@ skillhub trust list [--json]
 skillhub trust allow <skill-id>
 skillhub trust block <skill-id> [--reason <text>]
 skillhub trust reset <skill-id>
+skillhub connect codex|claude|cursor [--dry-run]
+skillhub demo
 skillhub doctor [skill-id] [--json]
 skillhub doctor agents|codex|claude|cursor [--json]
 skillhub install <owner/repo | github-url>
@@ -237,7 +232,7 @@ skillhub audit
 skillhub audit some-skill --json
 ```
 
-The audit flags patterns like piping downloads into a shell, destructive deletes, dynamic code execution, hardcoded secrets, `sudo`, obfuscation, and plain-HTTP endpoints. Results are stored in the local SQLite index and surface in `skillhub show` and MCP `get_skill`.
+The audit flags patterns like piping downloads into a shell, destructive deletes, dynamic code execution, hardcoded secrets, `sudo`, obfuscation, and plain-HTTP endpoints. Rules v2 are context-aware to keep false positives down: markdown prose is never scanned (documentation that *mentions* `rm -rf` is not an attack), code blocks inside markdown are scanned at reduced severity, and `rm` is only critical when it targets system paths like `/` or `~`. Results are stored in the local SQLite index and surface in `skillhub show` and MCP `get_skill`.
 
 Decide what agents may see:
 
