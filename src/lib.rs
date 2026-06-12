@@ -1,6 +1,7 @@
 pub mod audit;
 pub mod cli;
 pub mod config;
+pub mod connect;
 pub mod db;
 pub mod doctor;
 pub mod install;
