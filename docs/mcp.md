@@ -9,7 +9,7 @@ Search indexed skills.
 Input:
 
 ```json
-{ "query": "web search" }
+{ "query": "template" }
 ```
 
 ## `skillhub.list_skills`
@@ -29,7 +29,7 @@ Return skill metadata, summary, files, commands, source, detected capabilities, 
 Input:
 
 ```json
-{ "skill_id": "anysearch-skill" }
+{ "skill_id": "template-skill" }
 ```
 
 ## `skillhub.get_skill_file`
@@ -39,7 +39,7 @@ Read a safe file from a skill directory.
 Input:
 
 ```json
-{ "skill_id": "anysearch-skill", "file": "SKILL.md" }
+{ "skill_id": "template-skill", "file": "SKILL.md" }
 ```
 
 Blocked:
@@ -56,7 +56,7 @@ Return recommended commands without executing them.
 Input:
 
 ```json
-{ "skill_id": "anysearch-skill" }
+{ "skill_id": "template-skill" }
 ```
 
 ## `skillhub.doctor_skill`
@@ -66,7 +66,7 @@ Run structured diagnostics for one skill.
 Input:
 
 ```json
-{ "skill_id": "anysearch-skill" }
+{ "skill_id": "template-skill" }
 ```
 
 ## Execution Boundary
