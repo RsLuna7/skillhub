@@ -7,6 +7,7 @@ pub mod demo;
 pub mod doctor;
 pub mod install;
 pub mod mcp;
+pub mod providers;
 pub mod run;
 pub mod scan;
 pub mod search;
