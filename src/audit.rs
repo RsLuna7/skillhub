@@ -279,3 +279,94 @@ fn truncate_excerpt(line: &str) -> String {
     out.push('…');
     out
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum FileContext {
+    Executable,
+    Documentation,
+    Config,
+}
+
+#[allow(dead_code)]
+fn classify_file(relative_path: &str) -> FileContext {
+    let extension = Path::new(relative_path)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("");
+    match extension.to_ascii_lowercase().as_str() {
+        "sh" | "ps1" | "py" | "js" => FileContext::Executable,
+        "md" | "markdown" => FileContext::Documentation,
+        _ => FileContext::Config,
+    }
+}
+
+#[allow(dead_code)]
+fn scannable_lines<'a>(context: &FileContext, content: &'a str) -> Vec<(usize, &'a str)> {
+    match context {
+        FileContext::Documentation => fenced_code_lines(content),
+        _ => content
+            .lines()
+            .enumerate()
+            .map(|(index, line)| (index + 1, line))
+            .collect(),
+    }
+}
+
+#[allow(dead_code)]
+fn fenced_code_lines(content: &str) -> Vec<(usize, &str)> {
+    let mut in_fence = false;
+    let mut out = Vec::new();
+    for (index, line) in content.lines().enumerate() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
+            in_fence = !in_fence;
+            continue;
+        }
+        if in_fence {
+            out.push((index + 1, line));
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn classify_file_by_extension() {
+        assert!(matches!(
+            classify_file("scripts/run.sh"),
+            FileContext::Executable
+        ));
+        assert!(matches!(
+            classify_file("scripts/tool.ps1"),
+            FileContext::Executable
+        ));
+        assert!(matches!(
+            classify_file("SKILL.md"),
+            FileContext::Documentation
+        ));
+        assert!(matches!(classify_file("runtime.conf"), FileContext::Config));
+        assert!(matches!(classify_file(".env.example"), FileContext::Config));
+    }
+
+    #[test]
+    fn fenced_code_lines_skips_prose_and_keeps_line_numbers() {
+        let md = "prose rm -rf /\n```bash\nrm -rf /\n```\nmore prose\n";
+        let lines = fenced_code_lines(md);
+        assert_eq!(lines, vec![(3, "rm -rf /")]);
+    }
+
+    #[test]
+    fn fenced_code_lines_handles_tilde_fences() {
+        let md = "~~~\necho hi\n~~~\n";
+        assert_eq!(fenced_code_lines(md), vec![(2, "echo hi")]);
+    }
+
+    #[test]
+    fn scannable_lines_uses_all_lines_for_scripts() {
+        let lines = scannable_lines(&FileContext::Executable, "a\nb\n");
+        assert_eq!(lines, vec![(1, "a"), (2, "b")]);
+    }
+}
