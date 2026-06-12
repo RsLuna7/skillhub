@@ -20,10 +20,10 @@ command = "skillhub"
 args = ["mcp"]
 ```
 
-Restart Codex, then ask:
+Restart Codex, then try a normal skill lookup:
 
 ```text
-Use skillhub to search my local skills for web search.
+Use skillhub to find a writing template.
 ```
 
 Recommended instruction for Codex:

@@ -1,8 +1,8 @@
 # SkillHub
 
-**One local skill library for every AI agent.**
+**One local skill library for your AI tools.**
 
-SkillHub is a lightweight Rust CLI and MCP server that lets Codex, Claude Code, Cursor, OpenCode, and other MCP-capable agents share the same local agent skills.
+SkillHub is a lightweight Rust CLI and MCP server that lets Codex, Claude Code, Cursor, OpenCode, and other MCP-capable tools share the same local skills.
 
 It scans your existing skill folders, indexes `SKILL.md` packages, installs skills from GitHub, and exposes them through one MCP server.
 
@@ -13,7 +13,7 @@ cargo install --git https://github.com/RsLuna7/skillhub
 skillhub setup
 ```
 
-Connect it to your agent:
+Connect it to any MCP client:
 
 ```json
 {
@@ -26,20 +26,20 @@ Connect it to your agent:
 }
 ```
 
-Then ask your agent:
+Try a general-purpose search:
 
 ```text
-Use skillhub to find a web search skill.
+Use skillhub to find a template skill.
 ```
 
 ## Why
 
-AI agent skills are becoming reusable packages: instructions, scripts, references, templates, and troubleshooting notes. The problem is that every agent stores and discovers them differently.
+Skills are becoming reusable packages: instructions, scripts, references, templates, and troubleshooting notes. The problem is that every AI tool stores and discovers them differently.
 
 SkillHub gives you one local registry:
 
-- Find skills installed by another agent.
-- Search local skills from any MCP-capable agent.
+- Find skills installed by another tool.
+- Search local skills from any MCP-capable client.
 - Read `SKILL.md`, `README.md`, and `runtime.conf` on demand.
 - See recommended commands without executing them.
 - Preview command execution with a dry-run.
@@ -74,21 +74,21 @@ MCP config:
   }
 }
 
-$ skillhub install anysearch-ai/anysearch-skill
-Installed: ~/.agents/skills/anysearch-skill
+$ skillhub install owner/template-skill
+Installed: ~/.agents/skills/template-skill
 
-$ skillhub search "web search"
-ID                       Name        Risk     Capabilities         Summary
-anysearch-skill          anysearch   high     web_search,coding    Real-time search engine...
+$ skillhub search "template"
+ID                       Name              Risk     Capabilities      Summary
+template-skill           Template Helper   low      writing           Reusable templates...
 
-$ skillhub show anysearch-skill
+$ skillhub show template-skill
 What it does
-  Real-time search engine supporting web search...
+  Reusable templates for common writing and planning workflows.
 
 How to use it
   Read SKILL.md first, then inspect commands if needed.
 
-$ skillhub run anysearch-skill 1 --dry-run
+$ skillhub run template-skill 1 --dry-run
 will_execute: false
 ```
 
@@ -141,10 +141,10 @@ command = "skillhub"
 args = ["mcp"]
 ```
 
-Then restart Codex and ask:
+Then restart Codex and try a normal skill lookup:
 
 ```text
-Use skillhub to list my local skills.
+Use skillhub to find a writing template.
 ```
 
 ## CLI
