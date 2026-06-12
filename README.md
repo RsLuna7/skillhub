@@ -28,6 +28,7 @@ skillhub connect codex    # or: claude, cursor
 ```
 
 `connect` backs up the agent config before editing it; use `--dry-run` to preview the change without writing anything.
+
 ## Why
 
 Skills are becoming reusable packages: instructions, scripts, references, templates, and troubleshooting notes. The problem is that every AI tool stores and discovers them differently.

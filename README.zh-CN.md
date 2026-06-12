@@ -13,27 +13,21 @@ SkillHub 是一个轻量的 Rust CLI 和 MCP Server。它可以让 Codex、Claud
 
 ```bash
 cargo install --git https://github.com/RsLuna7/skillhub
+skillhub demo
+```
+
+`skillhub demo` 是一个 30 秒的沙盒导览：扫描两个示例 skill，用本地规则审计它们，屏蔽危险的那个，然后展示 MCP 客户端实际能看到什么。整个过程不会改动临时目录以外的任何东西。
+
+![SkillHub demo](demo/skillhub-demo.gif)
+
+然后用一条命令把 SkillHub 接入你的 agent：
+
+```bash
 skillhub setup
+skillhub connect codex    # 或者: claude, cursor
 ```
 
-把它接入任意 MCP 客户端：
-
-```json
-{
-  "mcpServers": {
-    "skillhub": {
-      "command": "skillhub",
-      "args": ["mcp"]
-    }
-  }
-}
-```
-
-尝试一次通用搜索：
-
-```text
-Use skillhub to find a template skill.
-```
+`connect` 在修改 agent 配置前会自动备份；用 `--dry-run` 可以只预览、不写入。
 
 ## 为什么需要它
 
