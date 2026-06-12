@@ -165,6 +165,7 @@ Use skillhub to find a writing template.
 skillhub setup
 skillhub init
 skillhub scan [--force]
+skillhub ui [--port <port>] [--no-open]
 skillhub list
 skillhub search <query> [--json]
 skillhub show <skill-id> [--json]
@@ -237,6 +238,16 @@ SkillHub v0.5 uses provider-based discovery instead of a fixed list of scan root
 
 `skillhub scan` is incremental: unchanged roots are skipped, and `skillhub scan --force` performs a full re-scan. MCP `list_skills` and `search_skills` run the same cheap signature check and refresh stale indexed roots before returning.
 
+## GUI
+
+Run a local browser UI:
+
+```bash
+skillhub ui
+```
+
+The UI binds to `127.0.0.1`, opens your browser by default, and stops when the foreground process stops. It lets you scan, search, inspect details, run audits, and allow/block/reset trust decisions. It does not execute skill scripts or expose file contents beyond indexed metadata.
+
 ## Trust and Audit
 
 SkillHub v0.3 adds a local control plane on top of the registry.
@@ -269,6 +280,7 @@ SkillHub is read-first and intentionally conservative.
 - It returns recommended commands.
 - `skillhub run` is dry-run only.
 - It does not execute skill scripts.
+- `skillhub ui` does not execute skill scripts; it only scans, audits, and updates trust state.
 - Audits are local, deterministic, and offline.
 - Blocked skills are hidden from MCP clients.
 - It blocks `.env`, hidden files, absolute paths, and path traversal in MCP file reads.
@@ -285,6 +297,7 @@ Implemented:
 - Local skill scanning with capability detection
 - Provider-based cross-agent discovery with provenance
 - Lazy incremental scan and `scan --force`
+- Local browser UI (`skillhub ui`)
 - GitHub skill install
 - `setup`, `search`, `show`, `doctor`, and dry-run command previews
 - Deterministic local skill audits (`skillhub audit`)

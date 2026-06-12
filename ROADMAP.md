@@ -36,6 +36,7 @@
 - Skill provenance and deterministic priority de-duplication.
 - Lazy incremental re-scan (fresh on access, no daemon).
 - Tightened manifest-based detection.
+- Local browser UI for scanning, browsing, auditing, and trust management.
 
 ## v0.6
 
@@ -51,6 +52,5 @@
 ## Later
 
 - Optional command execution with explicit approvals.
-- Optional local web UI.
 - Skill marketplace/index integration.
 - Team policy profiles.

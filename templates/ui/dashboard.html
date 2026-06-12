@@ -1,0 +1,47 @@
+{% extends "ui/layout.html" %}
+
+{% block title %}SkillHub{% endblock %}
+{% block eyebrow %}Local control plane{% endblock %}
+{% block heading %}SkillHub{% endblock %}
+
+{% block content %}
+<section class="metric-band">
+  {% match notice %}
+  {% when Some with (message) %}
+  <p class="notice">{{ message }}</p>
+  {% when None %}
+  {% endmatch %}
+  <div class="metric" aria-label="{{ total_skills }} skills">
+    <span class="metric-value">{{ total_skills }}</span>
+    <span class="metric-label">skills</span>
+    <span class="sr-only">{{ total_skills }} skills</span>
+  </div>
+  <form method="post" action="/scan">
+    <button type="submit">Scan</button>
+  </form>
+  <form method="post" action="/scan/force">
+    <button type="submit">Force Scan</button>
+  </form>
+</section>
+
+<section class="summary-grid">
+  <article>
+    <h2>Sources</h2>
+    {% for item in source_counts %}
+    <p><strong>{{ item.label }}</strong> {{ item.count }}</p>
+    {% endfor %}
+  </article>
+  <article>
+    <h2>Risk</h2>
+    {% for item in risk_counts %}
+    <p><strong>{{ item.label }}</strong> {{ item.count }}</p>
+    {% endfor %}
+  </article>
+  <article>
+    <h2>Trust</h2>
+    {% for item in trust_counts %}
+    <p><strong>{{ item.label }}</strong> {{ item.count }}</p>
+    {% endfor %}
+  </article>
+</section>
+{% endblock %}

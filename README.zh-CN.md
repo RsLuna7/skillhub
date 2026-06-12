@@ -164,6 +164,7 @@ Use skillhub to find a writing template.
 skillhub setup
 skillhub init
 skillhub scan [--force]
+skillhub ui [--port <port>] [--no-open]
 skillhub list
 skillhub search <query> [--json]
 skillhub show <skill-id> [--json]
@@ -236,6 +237,16 @@ SkillHub v0.5 不再只依赖固定的 scan roots，而是使用 provider-based 
 
 `skillhub scan` 是增量的：未变化的 roots 会被跳过；`skillhub scan --force` 会强制全量重扫。MCP `list_skills` / `search_skills` 也会在返回前做便宜的 signature 检查，并刷新已索引且有变化的 roots。
 
+## GUI
+
+运行本地浏览器界面：
+
+```bash
+skillhub ui
+```
+
+这个 UI 只绑定 `127.0.0.1`，默认会打开浏览器；当前台进程结束，UI 也会停止。它可以扫描、搜索、查看详情、运行审计，以及 allow/block/reset trust 状态。它不会执行 skill 脚本，也不会暴露文件内容，只展示已索引的元数据。
+
 ## 信任与审计
 
 SkillHub v0.3 在注册表之上增加了一个本地控制平面。
@@ -268,6 +279,7 @@ SkillHub 以“先读取、再判断”为原则，默认保守。
 - 它会返回推荐命令。
 - `skillhub run` 只支持 dry-run。
 - 它不会执行 skill 脚本。
+- `skillhub ui` 不会执行 skill 脚本；它只负责扫描、审计和更新 trust 状态。
 - 审计是本地、确定性的，且完全离线。
 - 被屏蔽的 skills 对 MCP 客户端不可见。
 - MCP 文件读取会阻止 `.env`、隐藏文件、绝对路径和路径穿越。
@@ -284,6 +296,7 @@ SkillHub 仍处于 alpha 阶段，适合本地试用和反馈。
 - 本地 skill 扫描和 capability 检测
 - provider-based cross-agent discovery，并记录 `source_agent`
 - lazy incremental scan 和 `skillhub scan --force`
+- 本地浏览器 UI（`skillhub ui`）
 - 从 GitHub 安装 skill
 - `setup`、`search`、`show`、`doctor` 和 dry-run 命令预览
 - 确定性的本地 skill 审计（`skillhub audit`）

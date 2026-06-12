@@ -8,6 +8,7 @@ Discovery release: broad, fresh, deterministic skill discovery.
 - Skill provenance: each skill records which agent it came from (`source_agent`), surfaced in `show` and MCP `list_skills`. Duplicate skill ids are resolved deterministically by priority (user-config > project > user-global > plugin) and every location is recorded.
 - Lazy incremental re-scan: `scan` skips unchanged roots; MCP `list_skills`/`search_skills` re-scan stale indexed roots on access, so the index stays fresh with no resident daemon. New `scan --force` performs a full re-scan.
 - Tightened detection: a folder is a skill only with a valid `SKILL.md`/`skill.yaml` manifest; the fuzzy README heuristic was removed, cutting false positives.
+- Local Web UI: `skillhub ui` opens a browser dashboard for scanning, browsing, auditing, and trust/block management without executing skill scripts.
 
 ## 0.4.0 - 2026-06-12
 

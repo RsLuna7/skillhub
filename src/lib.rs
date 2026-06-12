@@ -16,3 +16,4 @@ pub mod security;
 pub mod setup;
 pub mod skill;
 pub mod trust;
+pub mod ui;

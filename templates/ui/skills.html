@@ -1,0 +1,47 @@
+{% extends "ui/layout.html" %}
+
+{% block title %}SkillHub Skills{% endblock %}
+{% block eyebrow %}Skill inventory{% endblock %}
+{% block heading %}Skills{% endblock %}
+
+{% block content %}
+<form class="filters" method="get" action="/skills">
+  <input name="q" placeholder="Search skills" value="{{ filters.q.as_deref().unwrap_or("") }}">
+  <select name="source">
+    <option value="">Any source</option>
+    <option value="generic">generic</option>
+    <option value="claude">claude</option>
+    <option value="codex">codex</option>
+    <option value="cursor">cursor</option>
+    <option value="project">project</option>
+    <option value="user-config">user-config</option>
+  </select>
+  <select name="risk">
+    <option value="">Any risk</option>
+    <option value="low">low</option>
+    <option value="medium">medium</option>
+    <option value="high">high</option>
+  </select>
+  <select name="trust">
+    <option value="">Any trust</option>
+    <option value="trusted">trusted</option>
+    <option value="untrusted">untrusted</option>
+    <option value="blocked">blocked</option>
+  </select>
+  <button type="submit">Filter</button>
+</form>
+
+<section class="skill-list">
+  {% for skill in skills %}
+  <a class="skill-row" href="/skills/{{ skill.id }}">
+    <strong>{{ skill.name }}</strong>
+    <span>{{ skill.id }}</span>
+    <span>{{ skill.risk }}</span>
+    <span>{{ skill.source_agent }}</span>
+    <span>{{ skill.trust }}</span>
+    <span>{{ skill.visibility }}</span>
+    <small>{{ skill.summary }}</small>
+  </a>
+  {% endfor %}
+</section>
+{% endblock %}

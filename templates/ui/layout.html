@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/assets/ui.css">
+  <title>{% block title %}SkillHub{% endblock %}</title>
+</head>
+<body class="shell">
+  <main class="workspace">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">{% block eyebrow %}Local control plane{% endblock %}</p>
+        <h1>{% block heading %}SkillHub{% endblock %}</h1>
+      </div>
+      <nav class="nav">
+        <a href="/">Dashboard</a>
+        <a href="/skills">Skills</a>
+      </nav>
+    </header>
+
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

@@ -1,0 +1,65 @@
+{% extends "ui/layout.html" %}
+
+{% block title %}{{ summary.skill.name }} - SkillHub{% endblock %}
+{% block eyebrow %}{{ summary.skill.source_agent }}{% endblock %}
+{% block heading %}{{ summary.skill.name }}{% endblock %}
+
+{% block content %}
+<section class="detail-grid">
+  <article>
+    <h2>Summary</h2>
+    <p>{{ summary.skill.summary }}</p>
+    <p>{{ summary.skill.description }}</p>
+  </article>
+  <article>
+    <h2>Status</h2>
+    <p><strong>id</strong> {{ summary.skill.id }}</p>
+    <p><strong>install path</strong> <small>{{ summary.skill.install_path.display() }}</small></p>
+    <p><strong>risk</strong> {{ summary.skill.risk_level }}</p>
+    <p><strong>trust</strong> {{ summary.trust }}</p>
+    <p><strong>visibility</strong> {{ summary.visibility }}</p>
+    {% match summary.audit %}
+    {% when Some with (audit) %}
+    <p><strong>audit</strong> {{ audit.status }} ({{ audit.findings }} findings)</p>
+    {% when None %}
+    <p><strong>audit</strong> not audited</p>
+    {% endmatch %}
+    <div class="actions">
+      <form method="post" action="/skills/{{ summary.skill.id }}/audit">
+        <button type="submit">Audit</button>
+      </form>
+      <form method="post" action="/skills/{{ summary.skill.id }}/trust/allow">
+        <button type="submit">Allow</button>
+      </form>
+      <form method="post" action="/skills/{{ summary.skill.id }}/trust/block">
+        <button type="submit">Block</button>
+      </form>
+      <form method="post" action="/skills/{{ summary.skill.id }}/trust/reset">
+        <button type="submit">Reset</button>
+      </form>
+    </div>
+  </article>
+</section>
+
+<section class="detail-grid">
+  <article>
+    <h2>Files</h2>
+    {% for file in summary.files %}
+    <p>{{ file.relative_path }} <small>{{ file.file_type }}</small></p>
+    {% endfor %}
+  </article>
+  <article>
+    <h2>Commands</h2>
+    {% for command in summary.commands %}
+    <p>{{ command.runtime }} <small>{{ command.command }}</small></p>
+    {% endfor %}
+  </article>
+</section>
+
+<section>
+  <h2>Sources</h2>
+  {% for source in sources %}
+  <p>{{ source.agent }} {{ source.priority }} <small>{{ source.root }}</small></p>
+  {% endfor %}
+</section>
+{% endblock %}

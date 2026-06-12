@@ -1,7 +1,7 @@
 use crate::config::{AppConfig, init_config};
 use crate::db::Database;
 use crate::{
-    audit, connect, demo, doctor, install, mcp, run as skill_run, scan, search, setup, trust,
+    audit, connect, demo, doctor, install, mcp, run as skill_run, scan, search, setup, trust, ui,
 };
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
@@ -66,6 +66,12 @@ enum Command {
     Config {
         #[command(subcommand)]
         command: ConfigCommand,
+    },
+    Ui {
+        #[arg(long)]
+        port: Option<u16>,
+        #[arg(long)]
+        no_open: bool,
     },
 }
 
@@ -295,6 +301,10 @@ pub fn run(cli: Cli) -> Result<()> {
                     }
                 }
             }
+        }
+        Command::Ui { port, no_open } => {
+            let cfg = AppConfig::load_or_init()?;
+            ui::run_ui(cfg, port.unwrap_or(4567), !no_open)?;
         }
     }
     Ok(())

@@ -63,3 +63,17 @@ fn scan_accepts_force_flag() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Scanned"));
 }
+
+#[test]
+fn ui_help_exposes_local_server_options() {
+    let output = Command::new(env!("CARGO_BIN_EXE_skillhub"))
+        .arg("ui")
+        .arg("--help")
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("--port"));
+    assert!(stdout.contains("--no-open"));
+}
