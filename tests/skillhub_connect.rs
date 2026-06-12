@@ -49,3 +49,56 @@ fn connect_rejects_unknown_agent() {
     let temp = tempfile::tempdir().unwrap();
     assert!(connect(temp.path(), "vscode", "skillhub", false).is_err());
 }
+
+#[test]
+fn connect_claude_merges_json_preserving_existing_keys() {
+    let temp = tempfile::tempdir().unwrap();
+    let home = temp.path();
+    std::fs::write(
+        home.join(".claude.json"),
+        r#"{"theme":"dark","mcpServers":{"other":{"command":"other"}}}"#,
+    )
+    .unwrap();
+
+    let report = connect(home, "claude", "skillhub", false).unwrap();
+    assert!(report.changed);
+    assert!(report.backup_path.is_some());
+
+    let content = std::fs::read_to_string(home.join(".claude.json")).unwrap();
+    let root: serde_json::Value = serde_json::from_str(&content).unwrap();
+    assert_eq!(root["theme"], "dark");
+    assert_eq!(root["mcpServers"]["other"]["command"], "other");
+    assert_eq!(root["mcpServers"]["skillhub"]["command"], "skillhub");
+    assert_eq!(root["mcpServers"]["skillhub"]["args"][0], "mcp");
+
+    let second = connect(home, "claude", "skillhub", false).unwrap();
+    assert!(!second.changed);
+}
+
+#[test]
+fn connect_cursor_creates_config_when_missing() {
+    let temp = tempfile::tempdir().unwrap();
+    let home = temp.path();
+
+    let report = connect(home, "cursor", "skillhub", false).unwrap();
+    assert!(report.changed);
+    assert!(report.backup_path.is_none());
+
+    let content =
+        std::fs::read_to_string(home.join(".cursor").join("mcp.json")).unwrap();
+    let root: serde_json::Value = serde_json::from_str(&content).unwrap();
+    assert_eq!(root["mcpServers"]["skillhub"]["command"], "skillhub");
+}
+
+#[test]
+fn connect_claude_rejects_malformed_json() {
+    let temp = tempfile::tempdir().unwrap();
+    let home = temp.path();
+    std::fs::write(home.join(".claude.json"), "not json at all").unwrap();
+    assert!(connect(home, "claude", "skillhub", false).is_err());
+    // Original file must be untouched after a failed connect.
+    assert_eq!(
+        std::fs::read_to_string(home.join(".claude.json")).unwrap(),
+        "not json at all"
+    );
+}

@@ -37,14 +37,57 @@ fn connect_codex(home: &Path, command: &str, dry_run: bool) -> Result<ConnectRep
     write_with_backup("codex", &config_path, &existing, &content, dry_run)
 }
 
+
+
 fn connect_claude(home: &Path, command: &str, dry_run: bool) -> Result<ConnectReport> {
-    let _ = (home, command, dry_run);
-    bail!("claude support lands in the next task");
+    merge_mcp_json("claude", &home.join(".claude.json"), command, dry_run)
 }
 
 fn connect_cursor(home: &Path, command: &str, dry_run: bool) -> Result<ConnectReport> {
-    let _ = (home, command, dry_run);
-    bail!("cursor support lands in the next task");
+    merge_mcp_json(
+        "cursor",
+        &home.join(".cursor").join("mcp.json"),
+        command,
+        dry_run,
+    )
+}
+
+fn merge_mcp_json(
+    agent: &str,
+    config_path: &Path,
+    command: &str,
+    dry_run: bool,
+) -> Result<ConnectReport> {
+    let existing = read_existing(config_path)?;
+    let mut root: serde_json::Value = if existing.trim().is_empty() {
+        serde_json::json!({})
+    } else {
+        serde_json::from_str(&existing).map_err(|err| {
+            anyhow::anyhow!(
+                "{} is not valid JSON ({err}); fix it manually or move it aside",
+                config_path.display()
+            )
+        })?
+    };
+    if root["mcpServers"]["skillhub"].is_object() {
+        return Ok(unchanged(agent, config_path.to_path_buf()));
+    }
+    let Some(object) = root.as_object_mut() else {
+        bail!("{} is not a JSON object", config_path.display());
+    };
+    let servers = object
+        .entry("mcpServers")
+        .or_insert_with(|| serde_json::json!({}));
+    if !servers.is_object() {
+        bail!(
+            "mcpServers in {} is not a JSON object",
+            config_path.display()
+        );
+    }
+    servers["skillhub"] = serde_json::json!({ "command": command, "args": ["mcp"] });
+    let content = format!("{}
+", serde_json::to_string_pretty(&root)?);
+    write_with_backup(agent, config_path, &existing, &content, dry_run)
 }
 
 fn read_existing(path: &Path) -> Result<String> {
