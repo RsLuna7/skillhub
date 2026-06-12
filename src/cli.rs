@@ -18,7 +18,10 @@ pub struct Cli {
 enum Command {
     Init,
     Setup(SetupArgs),
-    Scan,
+    Scan {
+        #[arg(long)]
+        force: bool,
+    },
     List,
     Search {
         query: String,
@@ -117,11 +120,14 @@ pub fn run(cli: Cli) -> Result<()> {
         Command::Setup(args) => {
             setup::run_setup(args.print_agent_instructions)?;
         }
-        Command::Scan => {
+        Command::Scan { force } => {
             let cfg = AppConfig::load_or_init()?;
             let db = Database::open(&cfg)?;
             db.migrate()?;
-            let report = scan::scan_all(&cfg, &db)?;
+            let home = home_dir();
+            let cwd = std::env::current_dir().unwrap_or_else(|_| home.clone());
+            let roots = cfg.discovered_roots(&home, &cwd);
+            let report = scan::scan_roots(&cfg, &db, &roots, force)?;
             println!(
                 "Scanned {} roots, indexed {} skills",
                 report.roots_scanned, report.skills_indexed

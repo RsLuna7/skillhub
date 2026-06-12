@@ -146,3 +146,22 @@ fn scan_rejects_folders_without_valid_manifest() {
     let report = skillhub::scan::scan_roots(&cfg, &db, &roots, true).unwrap();
     assert_eq!(report.skills_indexed, 0);
 }
+
+#[test]
+fn incremental_scan_skips_unchanged_roots() {
+    let temp = tempfile::tempdir().unwrap();
+    let (cfg, db) = temp_db(&temp);
+    let root = temp.path().join("r");
+    write_skill(&root, "one", "One");
+    let roots = vec![skillhub::providers::DiscoveredRoot {
+        agent: "generic".into(),
+        path: root.clone(),
+        priority: skillhub::providers::priority::USER_GLOBAL,
+    }];
+
+    let first = skillhub::scan::scan_roots(&cfg, &db, &roots, false).unwrap();
+    assert_eq!(first.roots_scanned, 1);
+
+    let second = skillhub::scan::scan_roots(&cfg, &db, &roots, false).unwrap();
+    assert_eq!(second.roots_scanned, 0);
+}
