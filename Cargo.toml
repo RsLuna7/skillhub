@@ -1,0 +1,24 @@
+[package]
+name = "skillhub"
+version = "0.1.0"
+edition = "2024"
+description = "A lightweight local SkillHub and MCP bridge for sharing agent skills across AI agents."
+license = "MIT"
+repository = "https://github.com/RsLuna7/skillhub"
+readme = "README.md"
+keywords = ["mcp", "agents", "skills", "cli", "rust"]
+categories = ["command-line-utilities", "development-tools"]
+
+[dependencies]
+anyhow = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4.5", features = ["derive"] }
+dirs = "6.0"
+regex = "1.11"
+rusqlite = { version = "0.37", features = ["bundled"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tempfile = "3.23"
+thiserror = "2.0"
+toml = "0.9"
+walkdir = "2.5"
