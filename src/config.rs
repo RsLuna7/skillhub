@@ -133,6 +133,6 @@ fn default_data_dir() -> PathBuf {
     home_dir().join(".skillhub")
 }
 
-fn home_dir() -> PathBuf {
+pub(crate) fn home_dir() -> PathBuf {
     dirs::home_dir().unwrap_or_else(|| PathBuf::from("."))
 }

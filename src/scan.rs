@@ -1,9 +1,11 @@
 use crate::config::AppConfig;
 use crate::db::Database;
+use crate::manifest::parse_frontmatter;
+use crate::providers::DiscoveredRoot;
 use crate::skill::{RiskLevel, Skill, SkillCommand, SkillFile};
 use anyhow::{Context, Result};
 use regex::Regex;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
@@ -16,24 +18,111 @@ pub struct ScanReport {
 type InspectedSkill = (Skill, Vec<SkillFile>, Vec<SkillCommand>);
 
 pub fn scan_all(cfg: &AppConfig, db: &Database) -> Result<ScanReport> {
+    let home = crate::config::home_dir();
+    let cwd = std::env::current_dir().unwrap_or_else(|_| home.clone());
+    let roots = cfg.discovered_roots(&home, &cwd);
+    scan_roots(cfg, db, &roots, true)
+}
+
+/// Scan the given roots. When `force` is false, roots whose signature is
+/// unchanged since the last scan are skipped.
+pub fn scan_roots(
+    cfg: &AppConfig,
+    db: &Database,
+    roots: &[DiscoveredRoot],
+    force: bool,
+) -> Result<ScanReport> {
+    let _ = cfg;
     let mut roots_scanned = 0;
-    let mut skills_indexed = 0;
-    for root in cfg.expanded_scan_roots() {
-        if !root.exists() {
+    let mut winners: HashMap<String, (u8, String, String, InspectedSkill)> = HashMap::new();
+    let mut sources: HashMap<String, Vec<(String, String, u8)>> = HashMap::new();
+
+    for root in roots {
+        if !root.path.exists() {
+            continue;
+        }
+        let root_key = root.path.to_string_lossy().to_string();
+        let signature = root_signature(&root.path);
+        if !force && db.get_scan_signature(&root_key)?.as_deref() == Some(signature.as_str()) {
             continue;
         }
         roots_scanned += 1;
-        for dir in candidate_dirs(&root) {
-            if let Some((skill, files, commands)) = inspect_skill_dir(&dir)? {
-                db.upsert_skill(&skill, &files, &commands)?;
-                skills_indexed += 1;
+        for dir in candidate_dirs(&root.path) {
+            if let Some(inspected) = inspect_skill_dir(&dir)? {
+                let id = inspected.0.id.clone();
+                sources.entry(id.clone()).or_default().push((
+                    root.agent.clone(),
+                    dir.to_string_lossy().to_string(),
+                    root.priority,
+                ));
+                let better = match winners.get(&id) {
+                    Some((priority, _, _, _)) => root.priority > *priority,
+                    None => true,
+                };
+                if better {
+                    winners.insert(
+                        id,
+                        (
+                            root.priority,
+                            root.agent.clone(),
+                            root_key.clone(),
+                            inspected,
+                        ),
+                    );
+                }
             }
         }
+        db.set_scan_signature(&root_key, &signature)?;
     }
+
+    let skills_indexed = winners.len();
+    for (id, (_priority, agent, root_key, (mut skill, files, commands))) in winners {
+        skill.source_agent = agent;
+        skill.source_root = root_key;
+        db.upsert_skill(&skill, &files, &commands)?;
+        if let Some(found) = sources.get(&id) {
+            db.replace_skill_sources(&id, found)?;
+        }
+    }
+
     Ok(ScanReport {
         roots_scanned,
         skills_indexed,
     })
+}
+
+/// Cheap signature for a root: its mtime plus the mtimes of its immediate
+/// subdirectories. Stat-only; never walks the full tree.
+fn root_signature(root: &Path) -> String {
+    use std::time::UNIX_EPOCH;
+
+    fn mtime(path: &Path) -> u128 {
+        path.metadata()
+            .ok()
+            .and_then(|meta| meta.modified().ok())
+            .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0)
+    }
+
+    let mut parts = vec![mtime(root).to_string()];
+    if let Ok(entries) = fs::read_dir(root) {
+        let mut subs = entries
+            .flatten()
+            .filter(|entry| entry.path().is_dir())
+            .map(|entry| {
+                (
+                    entry.file_name().to_string_lossy().to_string(),
+                    mtime(&entry.path()),
+                )
+            })
+            .collect::<Vec<_>>();
+        subs.sort();
+        for (name, modified) in subs {
+            parts.push(format!("{name}:{modified}"));
+        }
+    }
+    parts.join("|")
 }
 
 fn candidate_dirs(root: &Path) -> Vec<PathBuf> {
@@ -55,18 +144,12 @@ fn inspect_skill_dir(dir: &Path) -> Result<Option<InspectedSkill>> {
     let skill_yaml = dir.join("skill.yaml");
     let readme = dir.join("README.md");
     let readme_text = read_if_exists(&readme)?;
-    let has_readme_keyword = readme_text
-        .as_deref()
-        .map(|text| {
-            let lower = text.to_lowercase();
-            lower.contains("skill") || lower.contains("agent") || lower.contains("scripts")
-        })
-        .unwrap_or(false);
 
-    if !skill_md.exists() && !skill_yaml.exists() && !has_readme_keyword {
-        return Ok(None);
-    }
-
+    let manifest_text = read_if_exists(&skill_md)?.or(read_if_exists(&skill_yaml)?);
+    let manifest = match manifest_text.as_deref().map(parse_frontmatter) {
+        Some(Ok(manifest)) if manifest.is_valid() => manifest,
+        _ => return Ok(None),
+    };
     let skill_text = read_if_exists(&skill_md)?;
     let id = normalize_id(
         dir.file_name()
@@ -74,22 +157,15 @@ fn inspect_skill_dir(dir: &Path) -> Result<Option<InspectedSkill>> {
             .to_string_lossy()
             .as_ref(),
     );
-    let name = skill_text
-        .as_deref()
-        .and_then(|text| extract_frontmatter_field(text, "name"))
-        .or_else(|| {
-            readme_text
-                .as_deref()
-                .and_then(|text| extract_frontmatter_field(text, "name"))
-        })
+    let name = manifest
+        .name
+        .clone()
         .or_else(|| skill_text.as_deref().and_then(extract_heading))
-        .or_else(|| readme_text.as_deref().and_then(extract_heading))
         .unwrap_or_else(|| id.clone());
-    let summary = skill_text
-        .as_deref()
-        .and_then(extract_frontmatter_description)
+    let summary = manifest
+        .description
+        .clone()
         .or_else(|| readme_text.as_deref().and_then(extract_first_paragraph))
-        .or_else(|| skill_text.as_deref().and_then(extract_first_paragraph))
         .unwrap_or_else(|| "No summary available.".to_string());
     let description = readme_text
         .as_deref()
@@ -161,22 +237,6 @@ fn extract_heading(text: &str) -> Option<String> {
         line.strip_prefix("# ")
             .map(|value| value.trim().to_string())
     })
-}
-
-fn extract_frontmatter_description(text: &str) -> Option<String> {
-    extract_frontmatter_field(text, "description")
-}
-
-fn extract_frontmatter_field(text: &str, field: &str) -> Option<String> {
-    if !text.starts_with("---") {
-        return None;
-    }
-    let end = text[3..].find("---")? + 3;
-    let prefix = format!("{field}:");
-    text[3..end]
-        .lines()
-        .find_map(|line| line.trim().strip_prefix(&prefix))
-        .map(|value| value.trim().trim_matches('"').to_string())
 }
 
 fn extract_first_paragraph(text: &str) -> Option<String> {

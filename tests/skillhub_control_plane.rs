@@ -4,7 +4,7 @@ use skillhub::config::AppConfig;
 use skillhub::db::Database;
 use skillhub::doctor::{doctor_agent, doctor_agents};
 use skillhub::mcp::handle_request;
-use skillhub::scan::scan_all;
+use skillhub::scan::scan_roots;
 use skillhub::search::usage_summary;
 use skillhub::trust;
 use skillhub::trust::{TrustStatus, Visibility};
@@ -30,7 +30,12 @@ fn scanned_db(temp: &tempfile::TempDir) -> (AppConfig, Database) {
     let cfg = test_config(temp);
     let db = Database::open(&cfg).unwrap();
     db.migrate().unwrap();
-    scan_all(&cfg, &db).unwrap();
+    let roots = vec![skillhub::providers::DiscoveredRoot {
+        agent: "user-config".into(),
+        path: std::path::PathBuf::from(&cfg.scan_roots[0]),
+        priority: skillhub::providers::priority::USER_CONFIG,
+    }];
+    scan_roots(&cfg, &db, &roots, true).unwrap();
     (cfg, db)
 }
 

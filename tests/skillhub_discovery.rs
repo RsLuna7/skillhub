@@ -1,6 +1,7 @@
 use skillhub::config::{AppConfig, McpConfig};
 use skillhub::db::Database;
 use skillhub::skill::{RiskLevel, Skill};
+use std::fs;
 
 fn temp_db(temp: &tempfile::TempDir) -> (AppConfig, Database) {
     let cfg = AppConfig {
@@ -78,4 +79,70 @@ fn skill_provenance_round_trip() {
     let loaded = db.get_skill("demo").unwrap().unwrap();
     assert_eq!(loaded.source_agent, "project");
     assert_eq!(loaded.source_root, temp.path().to_string_lossy());
+}
+
+fn write_skill(root: &std::path::Path, id: &str, name: &str) {
+    let dir = root.join(id);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(
+        dir.join("SKILL.md"),
+        format!("---\nname: {name}\ndescription: demo\n---\n# {name}\n"),
+    )
+    .unwrap();
+}
+
+#[test]
+fn scan_dedupes_by_priority_and_records_all_sources() {
+    let temp = tempfile::tempdir().unwrap();
+    let (cfg, db) = temp_db(&temp);
+
+    let global = temp.path().join("global");
+    let project = temp.path().join("project");
+    write_skill(&global, "shared", "Shared Global");
+    write_skill(&project, "shared", "Shared Project");
+
+    let roots = vec![
+        skillhub::providers::DiscoveredRoot {
+            agent: "claude".into(),
+            path: global.clone(),
+            priority: skillhub::providers::priority::USER_GLOBAL,
+        },
+        skillhub::providers::DiscoveredRoot {
+            agent: "project".into(),
+            path: project.clone(),
+            priority: skillhub::providers::priority::PROJECT,
+        },
+    ];
+
+    let report = skillhub::scan::scan_roots(&cfg, &db, &roots, true).unwrap();
+    assert_eq!(report.skills_indexed, 1);
+
+    let skill = db.get_skill("shared").unwrap().unwrap();
+    assert_eq!(skill.name, "Shared Project");
+    assert_eq!(skill.source_agent, "project");
+
+    let sources = db.get_skill_sources("shared").unwrap();
+    assert_eq!(sources.len(), 2);
+}
+
+#[test]
+fn scan_rejects_folders_without_valid_manifest() {
+    let temp = tempfile::tempdir().unwrap();
+    let (cfg, db) = temp_db(&temp);
+    let root = temp.path().join("root");
+    let dir = root.join("not-a-skill");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(
+        dir.join("README.md"),
+        "This mentions a skill and an agent.\n",
+    )
+    .unwrap();
+
+    let roots = vec![skillhub::providers::DiscoveredRoot {
+        agent: "generic".into(),
+        path: root,
+        priority: skillhub::providers::priority::USER_GLOBAL,
+    }];
+    let report = skillhub::scan::scan_roots(&cfg, &db, &roots, true).unwrap();
+    assert_eq!(report.skills_indexed, 0);
 }

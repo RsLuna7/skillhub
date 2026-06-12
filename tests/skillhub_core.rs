@@ -1,7 +1,7 @@
 use skillhub::config::AppConfig;
 use skillhub::db::Database;
 use skillhub::run::{dry_run_report, print_run};
-use skillhub::scan::scan_all;
+use skillhub::scan::scan_roots;
 use skillhub::search::usage_summary;
 use skillhub::security::safe_skill_file_path;
 
@@ -22,6 +22,15 @@ fn test_config(temp: &tempfile::TempDir) -> AppConfig {
     }
 }
 
+fn scan_fixtures(cfg: &AppConfig, db: &Database) -> anyhow::Result<skillhub::scan::ScanReport> {
+    let roots = vec![skillhub::providers::DiscoveredRoot {
+        agent: "user-config".into(),
+        path: std::path::PathBuf::from(&cfg.scan_roots[0]),
+        priority: skillhub::providers::priority::USER_CONFIG,
+    }];
+    scan_roots(cfg, db, &roots, true)
+}
+
 #[test]
 fn scan_indexes_fixture_skills_and_commands() {
     let temp = tempfile::tempdir().unwrap();
@@ -29,7 +38,7 @@ fn scan_indexes_fixture_skills_and_commands() {
     let db = Database::open(&cfg).unwrap();
     db.migrate().unwrap();
 
-    let report = scan_all(&cfg, &db).unwrap();
+    let report = scan_fixtures(&cfg, &db).unwrap();
     assert_eq!(report.roots_scanned, 1);
     assert_eq!(report.skills_indexed, 4);
 
@@ -59,7 +68,7 @@ fn search_matches_summary_and_name() {
     let cfg = test_config(&temp);
     let db = Database::open(&cfg).unwrap();
     db.migrate().unwrap();
-    scan_all(&cfg, &db).unwrap();
+    scan_fixtures(&cfg, &db).unwrap();
 
     let results = db.search_skills("web search").unwrap();
     assert_eq!(results.len(), 1);
@@ -76,7 +85,7 @@ fn usage_summary_includes_next_actions_and_commands() {
     let cfg = test_config(&temp);
     let db = Database::open(&cfg).unwrap();
     db.migrate().unwrap();
-    scan_all(&cfg, &db).unwrap();
+    scan_fixtures(&cfg, &db).unwrap();
 
     let summary = usage_summary(&db, "anysearch").unwrap();
     assert_eq!(summary.skill.id, "anysearch");
@@ -95,7 +104,7 @@ fn run_is_dry_run_only() {
     let cfg = test_config(&temp);
     let db = Database::open(&cfg).unwrap();
     db.migrate().unwrap();
-    scan_all(&cfg, &db).unwrap();
+    scan_fixtures(&cfg, &db).unwrap();
 
     let report = dry_run_report(&db, "anysearch", 1).unwrap();
     assert!(!report.will_execute);

@@ -65,7 +65,12 @@ pub fn run_demo() -> Result<()> {
     println!("SkillHub demo — sandboxed; nothing outside a temp folder is touched.");
     println!();
     println!("[1/4] Scanning sample skills...");
-    let report = scan::scan_all(&cfg, &db)?;
+    let roots = vec![crate::providers::DiscoveredRoot {
+        agent: "user-config".into(),
+        path: skills_root.clone(),
+        priority: crate::providers::priority::USER_CONFIG,
+    }];
+    let report = scan::scan_roots(&cfg, &db, &roots, true)?;
     println!("      indexed {} skills", report.skills_indexed);
     println!();
     println!("[2/4] Auditing them with local, offline rules...");
