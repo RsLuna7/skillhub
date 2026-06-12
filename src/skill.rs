@@ -15,6 +15,7 @@ pub struct Skill {
     pub has_scripts: bool,
     pub required_env: Vec<String>,
     pub tags: Vec<String>,
+    pub detected_capabilities: Vec<String>,
     pub risk_level: RiskLevel,
     pub last_scanned_at: String,
 }
@@ -35,6 +36,27 @@ pub struct SkillCommand {
     pub description: String,
     pub source_file: String,
     pub risk_level: RiskLevel,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkillUsageSummary {
+    pub skill: Skill,
+    pub files: Vec<SkillFile>,
+    pub commands: Vec<SkillCommand>,
+    pub source: String,
+    pub next_actions: Vec<String>,
+}
+
+pub fn next_actions(skill_id: &str) -> Vec<String> {
+    vec![
+        format!(
+            "Call skillhub.get_skill_file with skill_id={skill_id} and file=SKILL.md for full instructions."
+        ),
+        format!(
+            "Call skillhub.get_skill_commands with skill_id={skill_id} to inspect commands without executing them."
+        ),
+        "Do not execute commands unless the user explicitly approves outside SkillHub.".to_string(),
+    ]
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

@@ -1,6 +1,8 @@
 use skillhub::config::AppConfig;
 use skillhub::db::Database;
+use skillhub::run::{dry_run_report, print_run};
 use skillhub::scan::scan_all;
+use skillhub::search::usage_summary;
 use skillhub::security::safe_skill_file_path;
 
 fn test_config(temp: &tempfile::TempDir) -> AppConfig {
@@ -39,6 +41,11 @@ fn scan_indexes_fixture_skills_and_commands() {
             .required_env
             .contains(&"ANYSEARCH_API_KEY".to_string())
     );
+    assert!(
+        anysearch
+            .detected_capabilities
+            .contains(&"web_search".to_string())
+    );
 
     let commands = db.get_commands("anysearch").unwrap();
     assert_eq!(commands.len(), 2);
@@ -57,6 +64,50 @@ fn search_matches_summary_and_name() {
     let results = db.search_skills("web search").unwrap();
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].id, "anysearch");
+
+    let cn_results = db.search_skills("联网搜索").unwrap();
+    assert_eq!(cn_results.len(), 1);
+    assert_eq!(cn_results[0].id, "anysearch");
+}
+
+#[test]
+fn usage_summary_includes_next_actions_and_commands() {
+    let temp = tempfile::tempdir().unwrap();
+    let cfg = test_config(&temp);
+    let db = Database::open(&cfg).unwrap();
+    db.migrate().unwrap();
+    scan_all(&cfg, &db).unwrap();
+
+    let summary = usage_summary(&db, "anysearch").unwrap();
+    assert_eq!(summary.skill.id, "anysearch");
+    assert!(
+        summary
+            .next_actions
+            .iter()
+            .any(|action| action.contains("get_skill_file"))
+    );
+    assert_eq!(summary.commands.len(), 2);
+}
+
+#[test]
+fn run_is_dry_run_only() {
+    let temp = tempfile::tempdir().unwrap();
+    let cfg = test_config(&temp);
+    let db = Database::open(&cfg).unwrap();
+    db.migrate().unwrap();
+    scan_all(&cfg, &db).unwrap();
+
+    let report = dry_run_report(&db, "anysearch", 1).unwrap();
+    assert!(!report.will_execute);
+    assert_eq!(report.skill_id, "anysearch");
+    assert!(
+        report
+            .missing_env
+            .contains(&"ANYSEARCH_API_KEY".to_string())
+    );
+
+    let err = print_run(&db, "anysearch", 1, false).unwrap_err();
+    assert!(err.to_string().contains("only supports --dry-run"));
 }
 
 #[test]

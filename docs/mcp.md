@@ -24,7 +24,7 @@ Input:
 
 ## `skillhub.get_skill`
 
-Return skill metadata and summary.
+Return skill metadata, summary, files, commands, source, detected capabilities, and next actions.
 
 Input:
 
@@ -68,3 +68,7 @@ Input:
 ```json
 { "skill_id": "anysearch-skill" }
 ```
+
+## Execution Boundary
+
+SkillHub v0.2 does not expose command execution over MCP. Use `skillhub.get_skill_commands` to inspect commands only. The CLI command `skillhub run <skill-id> <command-index> --dry-run` previews a command without executing it.

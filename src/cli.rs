@@ -1,6 +1,6 @@
 use crate::config::{AppConfig, init_config};
 use crate::db::Database;
-use crate::{doctor, install, mcp, scan, search};
+use crate::{doctor, install, mcp, run as skill_run, scan, search, setup};
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 
@@ -15,13 +15,18 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 enum Command {
     Init,
+    Setup(SetupArgs),
     Scan,
     List,
     Search {
         query: String,
+        #[arg(long)]
+        json: bool,
     },
     Show {
         skill_id: String,
+        #[arg(long)]
+        json: bool,
     },
     Doctor(DoctorArgs),
     Install {
@@ -29,6 +34,15 @@ enum Command {
     },
     Mcp,
     McpConfig,
+    AgentInstructions {
+        agent: Option<String>,
+    },
+    Run {
+        skill_id: String,
+        command_index: usize,
+        #[arg(long)]
+        dry_run: bool,
+    },
     Config {
         #[command(subcommand)]
         command: ConfigCommand,
@@ -40,6 +54,12 @@ struct DoctorArgs {
     skill_id: Option<String>,
     #[arg(long)]
     json: bool,
+}
+
+#[derive(Debug, Args)]
+struct SetupArgs {
+    #[arg(long)]
+    print_agent_instructions: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -58,6 +78,9 @@ pub fn run(cli: Cli) -> Result<()> {
             println!("Config: {}", cfg.config_path.display());
             println!("Index: {}", cfg.index_path().display());
         }
+        Command::Setup(args) => {
+            setup::run_setup(args.print_agent_instructions)?;
+        }
         Command::Scan => {
             let cfg = AppConfig::load_or_init()?;
             let db = Database::open(&cfg)?;
@@ -74,17 +97,17 @@ pub fn run(cli: Cli) -> Result<()> {
             db.migrate()?;
             search::print_list(&db)?;
         }
-        Command::Search { query } => {
+        Command::Search { query, json } => {
             let cfg = AppConfig::load_or_init()?;
             let db = Database::open(&cfg)?;
             db.migrate()?;
-            search::print_search(&db, &query)?;
+            search::print_search(&db, &query, json)?;
         }
-        Command::Show { skill_id } => {
+        Command::Show { skill_id, json } => {
             let cfg = AppConfig::load_or_init()?;
             let db = Database::open(&cfg)?;
             db.migrate()?;
-            search::print_show(&db, &skill_id)?;
+            search::print_show(&db, &skill_id, json)?;
         }
         Command::Doctor(args) => {
             let cfg = AppConfig::load_or_init()?;
@@ -128,6 +151,19 @@ pub fn run(cli: Cli) -> Result<()> {
                     }
                 })
             );
+        }
+        Command::AgentInstructions { agent } => {
+            println!("{}", setup::agent_instructions(agent.as_deref()));
+        }
+        Command::Run {
+            skill_id,
+            command_index,
+            dry_run,
+        } => {
+            let cfg = AppConfig::load_or_init()?;
+            let db = Database::open(&cfg)?;
+            db.migrate()?;
+            skill_run::print_run(&db, &skill_id, command_index, dry_run)?;
         }
         Command::Config { command } => {
             let mut cfg = AppConfig::load_or_init()?;

@@ -6,6 +6,46 @@ SkillHub is a lightweight Rust CLI and MCP server that lets Codex, Claude Code, 
 
 It scans your existing skill folders, indexes `SKILL.md` packages, installs skills from GitHub, and exposes them through one MCP server.
 
+## Quick Start
+
+```bash
+cargo install --git https://github.com/RsLuna7/skillhub
+skillhub setup
+```
+
+Connect it to your agent:
+
+```json
+{
+  "mcpServers": {
+    "skillhub": {
+      "command": "skillhub",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Then ask your agent:
+
+```text
+Use skillhub to find a web search skill.
+```
+
+## Why
+
+AI agent skills are becoming reusable packages: instructions, scripts, references, templates, and troubleshooting notes. The problem is that every agent stores and discovers them differently.
+
+SkillHub gives you one local registry:
+
+- Find skills installed by another agent.
+- Search local skills from any MCP-capable agent.
+- Read `SKILL.md`, `README.md`, and `runtime.conf` on demand.
+- See recommended commands without executing them.
+- Preview command execution with a dry-run.
+- Diagnose missing runtime or environment variables.
+- Keep v0.2 safe: no silent script execution.
+
 ```text
 Codex / Claude Code / Cursor / OpenCode
         |
@@ -19,22 +59,48 @@ SkillHub
         +-- ./.skills
 ```
 
-## Why
+## Demo
 
-AI agent skills are becoming reusable packages: instructions, scripts, references, templates, and troubleshooting notes. The problem is that every agent stores and discovers them differently.
+```bash
+$ skillhub setup
+SkillHub setup complete
+MCP config:
+{
+  "mcpServers": {
+    "skillhub": {
+      "command": "skillhub",
+      "args": ["mcp"]
+    }
+  }
+}
 
-SkillHub gives you one local registry:
+$ skillhub install anysearch-ai/anysearch-skill
+Installed: ~/.agents/skills/anysearch-skill
 
-- Find skills installed by another agent.
-- Search local skills from any MCP-capable agent.
-- Read `SKILL.md`, `README.md`, and `runtime.conf` on demand.
-- See recommended commands without executing them.
-- Diagnose missing runtime or environment variables.
-- Keep v1 safe: no silent script execution.
+$ skillhub search "web search"
+ID                       Name        Risk     Capabilities         Summary
+anysearch-skill          anysearch   high     web_search,coding    Real-time search engine...
+
+$ skillhub show anysearch-skill
+What it does
+  Real-time search engine supporting web search...
+
+How to use it
+  Read SKILL.md first, then inspect commands if needed.
+
+$ skillhub run anysearch-skill 1 --dry-run
+will_execute: false
+```
 
 ## Install
 
-### From source
+From GitHub:
+
+```bash
+cargo install --git https://github.com/RsLuna7/skillhub
+```
+
+From source:
 
 ```bash
 git clone https://github.com/RsLuna7/skillhub.git
@@ -42,54 +108,26 @@ cd skillhub
 cargo install --path .
 ```
 
-### Run from a checkout
+Or download a binary from [Releases](https://github.com/RsLuna7/skillhub/releases).
+
+## Setup
+
+Run:
 
 ```bash
-cargo build
-./target/debug/skillhub init
-./target/debug/skillhub scan
-./target/debug/skillhub list
+skillhub setup
 ```
 
-On Windows PowerShell:
+This initializes SkillHub, scans configured skill folders, runs diagnostics, and prints MCP config snippets. It does **not** edit Codex, Claude, or Cursor config files.
 
-```powershell
-cargo build
-.\target\debug\skillhub.exe init
-.\target\debug\skillhub.exe scan
-.\target\debug\skillhub.exe list
-```
-
-## Quick Start
-
-Install a skill from GitHub:
+Print reusable agent instructions:
 
 ```bash
-skillhub install anysearch-ai/anysearch-skill
-```
-
-Search your skills:
-
-```bash
-skillhub search "web search"
-```
-
-Inspect a skill:
-
-```bash
-skillhub show anysearch-skill
-skillhub doctor anysearch-skill --json
-```
-
-Print MCP config:
-
-```bash
-skillhub mcp-config
+skillhub agent-instructions
+skillhub agent-instructions codex
 ```
 
 ## Connect to Codex
-
-Add SkillHub as a Codex MCP server:
 
 ```bash
 codex mcp add skillhub -- skillhub mcp
@@ -109,40 +147,19 @@ Then restart Codex and ask:
 Use skillhub to list my local skills.
 ```
 
-## Connect to Other Agents
-
-Any MCP-capable agent can use SkillHub with this server config:
-
-```json
-{
-  "mcpServers": {
-    "skillhub": {
-      "command": "skillhub",
-      "args": ["mcp"]
-    }
-  }
-}
-```
-
-If `skillhub` is not on PATH, use the absolute path to the binary.
-
-More examples:
-
-- [Codex setup](docs/codex.md)
-- [Claude setup](docs/claude.md)
-- [Cursor setup](docs/cursor.md)
-- [MCP tool reference](docs/mcp.md)
-
 ## CLI
 
 ```text
+skillhub setup
 skillhub init
 skillhub scan
 skillhub list
-skillhub search <query>
-skillhub show <skill-id>
+skillhub search <query> [--json]
+skillhub show <skill-id> [--json]
+skillhub run <skill-id> <command-index> --dry-run
 skillhub doctor [skill-id] [--json]
 skillhub install <owner/repo | github-url>
+skillhub agent-instructions [codex|claude|cursor]
 skillhub mcp
 skillhub mcp-config
 skillhub config paths
@@ -189,15 +206,14 @@ skillhub scan
 
 ## Safety Model
 
-SkillHub v1 is read-first and intentionally conservative.
+SkillHub v0.2 is read-first and intentionally conservative.
 
 - It indexes and reads skills.
 - It returns recommended commands.
+- `skillhub run` is dry-run only.
 - It does not execute skill scripts.
 - It blocks `.env`, hidden files, absolute paths, and path traversal in MCP file reads.
 - GitHub install refuses to overwrite existing skill directories.
-
-This keeps SkillHub useful as a shared registry without becoming a silent code execution layer.
 
 ## Current Status
 
@@ -206,20 +222,19 @@ SkillHub is alpha software. It is ready for local experimentation and feedback.
 Implemented:
 
 - Rust single-binary CLI
-- SQLite local index
-- Local skill scanning
+- SQLite local index with FTS5 fallback search
+- Local skill scanning with capability detection
 - GitHub skill install
-- Skill search/show/doctor
+- `setup`, `search`, `show`, `doctor`, and dry-run command previews
 - Minimal MCP stdio server
 - Safety checks for MCP file reads
 
 Planned:
 
 - Official MCP SDK implementation
-- Better full-text search
 - Version pinning and lockfiles
 - Stronger supply-chain checks for GitHub skills
-- Release binaries for Windows, macOS, and Linux
+- Optional approval-based command execution
 
 See [ROADMAP.md](ROADMAP.md).
 
