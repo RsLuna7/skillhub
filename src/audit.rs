@@ -335,12 +335,9 @@ fn downgrade(severity: FindingSeverity) -> FindingSeverity {
 }
 
 fn destructive_delete_severity(line: &str) -> FindingSeverity {
-    let is_rm =
-        Regex::new(r"(?i)\brm\s+-").expect("audit rule regex must compile");
-    let system_target = Regex::new(
-        r#"(?i)\brm\s+(?:-[a-z]+\s+)*["']?(?:/|~|\$home\b|[a-z]:[\/])"#,
-    )
-    .expect("audit rule regex must compile");
+    let is_rm = Regex::new(r"(?i)\brm\s+-").expect("audit rule regex must compile");
+    let system_target = Regex::new(r#"(?i)\brm\s+(?:-[a-z]+\s+)*["']?(?:/|~|\$home\b|[a-z]:[\/])"#)
+        .expect("audit rule regex must compile");
     if !is_rm.is_match(line) || system_target.is_match(line) {
         FindingSeverity::High
     } else {
@@ -397,9 +394,12 @@ mod tests {
 
     #[test]
     fn scannable_lines_uses_all_lines_for_scripts() {
-        let lines = scannable_lines(&FileContext::Executable, "a
+        let lines = scannable_lines(
+            &FileContext::Executable,
+            "a
 b
-");
+",
+        );
         assert_eq!(lines, vec![(1, "a"), (2, "b")]);
     }
 

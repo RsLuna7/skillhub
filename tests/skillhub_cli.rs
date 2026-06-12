@@ -22,7 +22,6 @@ fn setup_creates_isolated_config_and_prints_mcp_config() {
     assert!(stdout.contains("first call skillhub.search_skills"));
 }
 
-
 #[test]
 fn demo_runs_sandboxed_tour() {
     let temp = tempfile::tempdir().unwrap();

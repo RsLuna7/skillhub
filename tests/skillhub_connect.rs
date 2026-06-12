@@ -8,8 +8,7 @@ fn connect_codex_creates_config_and_is_idempotent() {
     let report = connect(home, "codex", "skillhub", false).unwrap();
     assert!(report.changed);
     assert!(report.backup_path.is_none());
-    let content =
-        std::fs::read_to_string(home.join(".codex").join("config.toml")).unwrap();
+    let content = std::fs::read_to_string(home.join(".codex").join("config.toml")).unwrap();
     assert!(content.contains("[mcp_servers.skillhub]"));
     assert!(content.contains("command = \"skillhub\""));
 
@@ -27,9 +26,11 @@ fn connect_codex_preserves_existing_config_and_backs_up() {
     let report = connect(home, "codex", "skillhub", false).unwrap();
     assert!(report.changed);
     let backup = report.backup_path.unwrap();
-    assert_eq!(std::fs::read_to_string(&backup).unwrap(), "model = \"o4\"\n");
-    let content =
-        std::fs::read_to_string(home.join(".codex").join("config.toml")).unwrap();
+    assert_eq!(
+        std::fs::read_to_string(&backup).unwrap(),
+        "model = \"o4\"\n"
+    );
+    let content = std::fs::read_to_string(home.join(".codex").join("config.toml")).unwrap();
     assert!(content.starts_with("model = \"o4\"\n"));
     assert!(content.contains("[mcp_servers.skillhub]"));
 }
@@ -84,8 +85,7 @@ fn connect_cursor_creates_config_when_missing() {
     assert!(report.changed);
     assert!(report.backup_path.is_none());
 
-    let content =
-        std::fs::read_to_string(home.join(".cursor").join("mcp.json")).unwrap();
+    let content = std::fs::read_to_string(home.join(".cursor").join("mcp.json")).unwrap();
     let root: serde_json::Value = serde_json::from_str(&content).unwrap();
     assert_eq!(root["mcpServers"]["skillhub"]["command"], "skillhub");
 }

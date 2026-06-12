@@ -1,6 +1,8 @@
 use crate::config::{AppConfig, init_config};
 use crate::db::Database;
-use crate::{audit, connect, demo, doctor, install, mcp, run as skill_run, scan, search, setup, trust};
+use crate::{
+    audit, connect, demo, doctor, install, mcp, run as skill_run, scan, search, setup, trust,
+};
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 
@@ -215,8 +217,7 @@ pub fn run(cli: Cli) -> Result<()> {
         Command::Connect { agent, dry_run } => {
             let home = home_dir();
             let command = setup::skillhub_command();
-            let report =
-                connect::connect(&home, &agent, &command.to_string_lossy(), dry_run)?;
+            let report = connect::connect(&home, &agent, &command.to_string_lossy(), dry_run)?;
             if !report.changed {
                 println!(
                     "skillhub is already registered in {}",

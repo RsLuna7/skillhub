@@ -37,8 +37,6 @@ fn connect_codex(home: &Path, command: &str, dry_run: bool) -> Result<ConnectRep
     write_with_backup("codex", &config_path, &existing, &content, dry_run)
 }
 
-
-
 fn connect_claude(home: &Path, command: &str, dry_run: bool) -> Result<ConnectReport> {
     merge_mcp_json("claude", &home.join(".claude.json"), command, dry_run)
 }
@@ -85,8 +83,11 @@ fn merge_mcp_json(
         );
     }
     servers["skillhub"] = serde_json::json!({ "command": command, "args": ["mcp"] });
-    let content = format!("{}
-", serde_json::to_string_pretty(&root)?);
+    let content = format!(
+        "{}
+",
+        serde_json::to_string_pretty(&root)?
+    );
     write_with_backup(agent, config_path, &existing, &content, dry_run)
 }
 
