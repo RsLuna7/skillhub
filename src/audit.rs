@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use std::path::Path;
 
-pub const RULES_VERSION: &str = "v1";
+pub const RULES_VERSION: &str = "v2";
 
 const EXCERPT_MAX_CHARS: usize = 120;
 
@@ -229,11 +229,12 @@ fn audit_file_content(
     rules: &[AuditRule],
     findings: &mut Vec<AuditFinding>,
 ) {
+    let context = classify_file(relative_path);
     let is_env_example = Path::new(relative_path)
         .file_name()
         .map(|name| name.to_string_lossy().ends_with(".env.example"))
         .unwrap_or(false);
-    for (index, line) in content.lines().enumerate() {
+    for (line_number, line) in scannable_lines(&context, content) {
         for rule in rules {
             if rule.skip_env_example && is_env_example {
                 continue;
@@ -246,9 +247,9 @@ fn audit_file_content(
             if rule.pattern.is_match(line) && !exempt {
                 findings.push(AuditFinding {
                     rule: rule.id.to_string(),
-                    severity: rule.severity.clone(),
+                    severity: finding_severity(rule, line, &context),
                     file: relative_path.to_string(),
-                    line: index + 1,
+                    line: line_number,
                     excerpt: if rule.redact_excerpt {
                         "(redacted)".to_string()
                     } else {
@@ -287,7 +288,6 @@ enum FileContext {
     Config,
 }
 
-#[allow(dead_code)]
 fn classify_file(relative_path: &str) -> FileContext {
     let extension = Path::new(relative_path)
         .extension()
@@ -300,7 +300,6 @@ fn classify_file(relative_path: &str) -> FileContext {
     }
 }
 
-#[allow(dead_code)]
 fn scannable_lines<'a>(context: &FileContext, content: &'a str) -> Vec<(usize, &'a str)> {
     match context {
         FileContext::Documentation => fenced_code_lines(content),
@@ -312,7 +311,6 @@ fn scannable_lines<'a>(context: &FileContext, content: &'a str) -> Vec<(usize, &
     }
 }
 
-#[allow(dead_code)]
 fn fenced_code_lines(content: &str) -> Vec<(usize, &str)> {
     let mut in_fence = false;
     let mut out = Vec::new();
@@ -329,7 +327,6 @@ fn fenced_code_lines(content: &str) -> Vec<(usize, &str)> {
     out
 }
 
-#[allow(dead_code)]
 fn downgrade(severity: FindingSeverity) -> FindingSeverity {
     match severity {
         FindingSeverity::High => FindingSeverity::Medium,
@@ -337,7 +334,6 @@ fn downgrade(severity: FindingSeverity) -> FindingSeverity {
     }
 }
 
-#[allow(dead_code)]
 fn destructive_delete_severity(line: &str) -> FindingSeverity {
     let is_rm =
         Regex::new(r"(?i)\brm\s+-").expect("audit rule regex must compile");
@@ -352,7 +348,6 @@ fn destructive_delete_severity(line: &str) -> FindingSeverity {
     }
 }
 
-#[allow(dead_code)]
 fn finding_severity(rule: &AuditRule, line: &str, context: &FileContext) -> FindingSeverity {
     let base = if rule.id == "destructive-delete" {
         destructive_delete_severity(line)

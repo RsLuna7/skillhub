@@ -31,7 +31,7 @@ fn scan_indexes_fixture_skills_and_commands() {
 
     let report = scan_all(&cfg, &db).unwrap();
     assert_eq!(report.roots_scanned, 1);
-    assert_eq!(report.skills_indexed, 3);
+    assert_eq!(report.skills_indexed, 4);
 
     let anysearch = db.get_skill("anysearch").unwrap().unwrap();
     assert_eq!(anysearch.name, "AnySearch Skill");

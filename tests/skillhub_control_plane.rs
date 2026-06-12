@@ -1,5 +1,5 @@
 use serde_json::{Value, json};
-use skillhub::audit::{AuditStatus, audit_all, audit_skill};
+use skillhub::audit::{AuditStatus, FindingSeverity, audit_all, audit_skill};
 use skillhub::config::AppConfig;
 use skillhub::db::Database;
 use skillhub::doctor::{doctor_agent, doctor_agents};
@@ -84,7 +84,7 @@ fn audit_passes_clean_fixture_and_audit_all_covers_everything() {
     assert!(report.findings.is_empty());
 
     let reports = audit_all(&db).unwrap();
-    assert_eq!(reports.len(), 3);
+    assert_eq!(reports.len(), 4);
     assert!(reports.iter().any(|r| r.skill_id == "danger-tool"));
 
     assert!(audit_skill(&db, "missing-skill").is_err());
@@ -150,7 +150,7 @@ fn mcp_hides_and_refuses_blocked_skills() {
     let (cfg, db) = scanned_db(&temp);
 
     let listed = call_tool(&cfg, &db, "skillhub.list_skills", json!({})).unwrap();
-    assert_eq!(listed["skills"].as_array().unwrap().len(), 3);
+    assert_eq!(listed["skills"].as_array().unwrap().len(), 4);
 
     trust::block(&db, "anysearch", None).unwrap();
 
@@ -161,7 +161,7 @@ fn mcp_hides_and_refuses_blocked_skills() {
         .iter()
         .map(|skill| skill["id"].as_str().unwrap().to_string())
         .collect::<Vec<_>>();
-    assert_eq!(ids.len(), 2);
+    assert_eq!(ids.len(), 3);
     assert!(!ids.contains(&"anysearch".to_string()));
 
     let results = call_tool(
@@ -298,4 +298,17 @@ fn migrate_upgrades_v02_database_in_place() {
     trust::block(&db, "legacy-skill", None).unwrap();
     assert!(trust::is_blocked(&db, "legacy-skill").unwrap());
     assert!(db.get_audit("legacy-skill").unwrap().is_none());
+}
+
+#[test]
+fn audit_v2_ignores_prose_and_downgrades_doc_code_blocks() {
+    let temp = tempfile::tempdir().unwrap();
+    let (_cfg, db) = scanned_db(&temp);
+
+    let report = audit_skill(&db, "docs-heavy").unwrap();
+    assert_eq!(report.rules_version, "v2");
+    assert_eq!(report.status, AuditStatus::Warn);
+    assert_eq!(report.findings.len(), 1);
+    assert_eq!(report.findings[0].rule, "destructive-delete");
+    assert_eq!(report.findings[0].severity, FindingSeverity::Low);
 }
