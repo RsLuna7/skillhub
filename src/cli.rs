@@ -1,6 +1,6 @@
 use crate::config::{AppConfig, init_config};
 use crate::db::Database;
-use crate::{doctor, install, mcp, run as skill_run, scan, search, setup};
+use crate::{audit, doctor, install, mcp, run as skill_run, scan, search, setup, trust};
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 
@@ -29,6 +29,15 @@ enum Command {
         json: bool,
     },
     Doctor(DoctorArgs),
+    Audit {
+        skill_id: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
+    Trust {
+        #[command(subcommand)]
+        command: TrustCommand,
+    },
     Install {
         source: String,
     },
@@ -66,6 +75,25 @@ struct SetupArgs {
 enum ConfigCommand {
     Paths,
     AddPath { path: String },
+}
+
+#[derive(Debug, Subcommand)]
+enum TrustCommand {
+    List {
+        #[arg(long)]
+        json: bool,
+    },
+    Allow {
+        skill_id: String,
+    },
+    Block {
+        skill_id: String,
+        #[arg(long)]
+        reason: Option<String>,
+    },
+    Reset {
+        skill_id: String,
+    },
 }
 
 pub fn run(cli: Cli) -> Result<()> {
@@ -113,12 +141,57 @@ pub fn run(cli: Cli) -> Result<()> {
             let cfg = AppConfig::load_or_init()?;
             let db = Database::open(&cfg)?;
             db.migrate()?;
-            if let Some(skill_id) = args.skill_id {
-                let report = doctor::doctor_skill(&db, &skill_id)?;
-                print_report(&report, args.json)?;
+            match args.skill_id.as_deref() {
+                Some("agents") => {
+                    let home = home_dir();
+                    let reports = doctor::doctor_agents(&home)?;
+                    print_reports(&reports, args.json)?;
+                }
+                Some(agent) if doctor::AGENT_NAMES.contains(&agent) => {
+                    let home = home_dir();
+                    let report = doctor::doctor_agent(&home, agent)?;
+                    print_report(&report, args.json)?;
+                }
+                Some(skill_id) => {
+                    let report = doctor::doctor_skill(&db, skill_id)?;
+                    print_report(&report, args.json)?;
+                }
+                None => {
+                    let report = doctor::doctor_global(&cfg)?;
+                    print_report(&report, args.json)?;
+                }
+            }
+        }
+        Command::Audit { skill_id, json } => {
+            let cfg = AppConfig::load_or_init()?;
+            let db = Database::open(&cfg)?;
+            db.migrate()?;
+            let reports = if let Some(skill_id) = skill_id {
+                vec![audit::audit_skill(&db, &skill_id)?]
             } else {
-                let report = doctor::doctor_global(&cfg)?;
-                print_report(&report, args.json)?;
+                audit::audit_all(&db)?
+            };
+            print_reports(&reports, json)?;
+        }
+        Command::Trust { command } => {
+            let cfg = AppConfig::load_or_init()?;
+            let db = Database::open(&cfg)?;
+            db.migrate()?;
+            match command {
+                TrustCommand::List { json } => trust::print_list(&db, json)?,
+                TrustCommand::Allow { skill_id } => {
+                    let record = trust::allow(&db, &skill_id)?;
+                    println!("{}: {}", record.skill_id, record.status);
+                }
+                TrustCommand::Block { skill_id, reason } => {
+                    let record = trust::block(&db, &skill_id, reason)?;
+                    println!("{}: {}", record.skill_id, record.status);
+                    println!("Hidden from MCP clients until unblocked.");
+                }
+                TrustCommand::Reset { skill_id } => {
+                    trust::reset(&db, &skill_id)?;
+                    println!("{skill_id}: untrusted");
+                }
             }
         }
         Command::Install { source } => {
@@ -196,4 +269,19 @@ fn print_report<T: serde::Serialize + std::fmt::Display>(report: &T, json: bool)
         println!("{report}");
     }
     Ok(())
+}
+
+fn print_reports<T: serde::Serialize + std::fmt::Display>(reports: &[T], json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(reports)?);
+        return Ok(());
+    }
+    for report in reports {
+        println!("{report}");
+    }
+    Ok(())
+}
+
+fn home_dir() -> std::path::PathBuf {
+    dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."))
 }

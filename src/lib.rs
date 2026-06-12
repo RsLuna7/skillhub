@@ -1,3 +1,4 @@
+pub mod audit;
 pub mod cli;
 pub mod config;
 pub mod db;
@@ -10,3 +11,4 @@ pub mod search;
 pub mod security;
 pub mod setup;
 pub mod skill;
+pub mod trust;

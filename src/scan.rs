@@ -408,9 +408,7 @@ fn command_for_script(
         runtime: runtime.to_string(),
         command,
         args: vec!["--help".to_string()],
-        description: format!(
-            "Recommended command for {relative}; SkillHub v0.2 does not execute it."
-        ),
+        description: format!("Recommended command for {relative}; SkillHub does not execute it."),
         source_file: relative,
         risk_level: risk.clone(),
     })

@@ -1,5 +1,6 @@
 use crate::db::Database;
-use crate::skill::{SkillUsageSummary, next_actions};
+use crate::skill::{AuditInfo, SkillUsageSummary, next_actions};
+use crate::trust::{TrustStatus, visibility_for};
 use anyhow::{Result, bail};
 
 pub fn print_list(db: &Database) -> Result<()> {
@@ -103,8 +104,20 @@ pub fn print_show(db: &Database, skill_id: &str, json: bool) -> Result<()> {
     println!();
     println!("Safety notes");
     println!("  Risk: {}", skill.risk_level);
+    println!("  Trust: {}", summary.trust);
+    if let Some(reason) = &summary.trust_reason {
+        println!("  Trust reason: {reason}");
+    }
+    match &summary.audit {
+        Some(audit) => println!(
+            "  Audit: {} ({} findings, rules {}, {})",
+            audit.status, audit.findings, audit.rules_version, audit.audited_at
+        ),
+        None => println!("  Audit: not audited (run `skillhub audit {}`)", skill.id),
+    }
+    println!("  MCP visibility: {}", summary.visibility);
     println!(
-        "  SkillHub v0.2 does not execute skill commands. Use `skillhub run {} 1 --dry-run` to preview.",
+        "  SkillHub does not execute skill commands. Use `skillhub run {} 1 --dry-run` to preview.",
         skill.id
     );
     Ok(())
@@ -118,11 +131,27 @@ pub fn usage_summary(db: &Database, skill_id: &str) -> Result<SkillUsageSummary>
         .get_install_source(skill_id)?
         .or_else(|| skill.source_url.clone())
         .unwrap_or_else(|| skill.source_type.clone());
+    let trust_record = db.get_trust(skill_id)?;
+    let trust = trust_record
+        .as_ref()
+        .map(|record| record.status.clone())
+        .unwrap_or(TrustStatus::Untrusted);
+    let trust_reason = trust_record.and_then(|record| record.reason);
+    let audit = db.get_audit(skill_id)?.map(|report| AuditInfo {
+        status: report.status,
+        findings: report.findings.len(),
+        rules_version: report.rules_version,
+        audited_at: report.audited_at,
+    });
     Ok(SkillUsageSummary {
         next_actions: next_actions(skill_id),
         files: db.get_files(skill_id)?,
         commands: db.get_commands(skill_id)?,
         source,
+        visibility: visibility_for(&trust),
+        trust,
+        trust_reason,
+        audit,
         skill,
     })
 }

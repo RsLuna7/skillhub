@@ -3,7 +3,10 @@ use crate::db::Database;
 use anyhow::{Result, bail};
 use serde::Serialize;
 use std::fmt::{Display, Formatter};
+use std::path::Path;
 use std::process::Command;
+
+pub const AGENT_NAMES: [&str; 3] = ["codex", "claude", "cursor"];
 
 #[derive(Debug, Serialize)]
 pub struct DoctorReport {
@@ -132,6 +135,105 @@ pub fn doctor_skill(db: &Database, skill_id: &str) -> Result<DoctorReport> {
         ));
     }
     Ok(report(skill_id, checks))
+}
+
+pub fn doctor_agents(home: &Path) -> Result<Vec<DoctorReport>> {
+    AGENT_NAMES
+        .iter()
+        .map(|agent| doctor_agent(home, agent))
+        .collect()
+}
+
+pub fn doctor_agent(home: &Path, agent: &str) -> Result<DoctorReport> {
+    let checks = match agent {
+        "codex" => codex_checks(home),
+        "claude" => claude_checks(home),
+        "cursor" => cursor_checks(home),
+        other => bail!("unknown agent: {other}; expected codex, claude, or cursor"),
+    };
+    Ok(report(&format!("agent:{agent}"), checks))
+}
+
+fn codex_checks(home: &Path) -> Vec<DoctorCheck> {
+    let config = home.join(".codex").join("config.toml");
+    vec![
+        path_check("config_file", config.exists(), config.display().to_string()),
+        mcp_entry_check("mcp_entry", &config),
+        path_check(
+            "skills_dir",
+            home.join(".codex").join("skills").exists(),
+            home.join(".codex").join("skills").display().to_string(),
+        ),
+        binary_check(),
+    ]
+}
+
+fn claude_checks(home: &Path) -> Vec<DoctorCheck> {
+    let configs = [
+        home.join(".claude.json"),
+        home.join(".claude").join("settings.json"),
+    ];
+    let existing = configs.iter().find(|path| path.exists());
+    let mut checks = vec![path_check(
+        "config_file",
+        existing.is_some(),
+        existing.unwrap_or(&configs[0]).display().to_string(),
+    )];
+    checks.push(match existing {
+        Some(path) => mcp_entry_check("mcp_entry", path),
+        None => DoctorCheck {
+            name: "mcp_entry".into(),
+            status: "warning".into(),
+            detail: "no Claude config file found".into(),
+        },
+    });
+    checks.push(path_check(
+        "skills_dir",
+        home.join(".claude").join("skills").exists(),
+        home.join(".claude").join("skills").display().to_string(),
+    ));
+    checks.push(binary_check());
+    checks
+}
+
+fn cursor_checks(home: &Path) -> Vec<DoctorCheck> {
+    let config = home.join(".cursor").join("mcp.json");
+    vec![
+        path_check("config_file", config.exists(), config.display().to_string()),
+        mcp_entry_check("mcp_entry", &config),
+        binary_check(),
+    ]
+}
+
+fn mcp_entry_check(name: &str, config: &Path) -> DoctorCheck {
+    let registered = std::fs::read_to_string(config)
+        .map(|content| content.contains("skillhub"))
+        .unwrap_or(false);
+    DoctorCheck {
+        name: name.to_string(),
+        status: if registered { "ok" } else { "warning" }.to_string(),
+        detail: if registered {
+            format!("skillhub registered in {}", config.display())
+        } else {
+            format!(
+                "skillhub not registered in {}; run `skillhub mcp-config` for a snippet",
+                config.display()
+            )
+        },
+    }
+}
+
+fn binary_check() -> DoctorCheck {
+    let on_path = crate::setup::command_on_path("skillhub");
+    DoctorCheck {
+        name: "skillhub_on_path".into(),
+        status: if on_path { "ok" } else { "warning" }.to_string(),
+        detail: if on_path {
+            "skillhub binary found on PATH".into()
+        } else {
+            "skillhub binary not found on PATH; use an absolute path in MCP config".into()
+        },
+    }
 }
 
 fn report(subject: &str, checks: Vec<DoctorCheck>) -> DoctorReport {

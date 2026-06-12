@@ -1,5 +1,7 @@
+use crate::audit::{AuditReport, AuditStatus};
 use crate::config::AppConfig;
 use crate::skill::{RiskLevel, Skill, SkillCommand, SkillFile};
+use crate::trust::{TrustRecord, TrustStatus};
 use anyhow::Result;
 use rusqlite::{Connection, OptionalExtension, params};
 use std::path::PathBuf;
@@ -78,6 +80,23 @@ impl Database {
                 skill_id TEXT PRIMARY KEY,
                 source_url TEXT NOT NULL,
                 installed_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS skill_trust (
+                skill_id TEXT PRIMARY KEY,
+                status TEXT NOT NULL,
+                reason TEXT,
+                decided_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS audit_results (
+                skill_id TEXT PRIMARY KEY,
+                status TEXT NOT NULL,
+                rules_version TEXT NOT NULL,
+                findings_json TEXT NOT NULL,
+                audited_at TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -321,6 +340,84 @@ impl Database {
             .map_err(Into::into)
     }
 
+    pub fn set_trust(&self, record: &TrustRecord) -> Result<()> {
+        let now = chrono::Utc::now().to_rfc3339();
+        self.conn.execute(
+            r#"
+            INSERT INTO skill_trust (skill_id, status, reason, decided_at, created_at, updated_at)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            ON CONFLICT(skill_id) DO UPDATE SET
+                status=excluded.status,
+                reason=excluded.reason,
+                decided_at=excluded.decided_at,
+                updated_at=excluded.updated_at
+            "#,
+            params![
+                record.skill_id,
+                record.status.as_str(),
+                record.reason,
+                record.decided_at,
+                now,
+                now,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_trust(&self, skill_id: &str) -> Result<Option<TrustRecord>> {
+        self.conn
+            .query_row(
+                "SELECT skill_id, status, reason, decided_at FROM skill_trust WHERE skill_id = ?1",
+                [skill_id],
+                trust_from_row,
+            )
+            .optional()
+            .map_err(Into::into)
+    }
+
+    pub fn clear_trust(&self, skill_id: &str) -> Result<()> {
+        self.conn
+            .execute("DELETE FROM skill_trust WHERE skill_id = ?1", [skill_id])?;
+        Ok(())
+    }
+
+    pub fn record_audit(&self, report: &AuditReport) -> Result<()> {
+        let now = chrono::Utc::now().to_rfc3339();
+        self.conn.execute(
+            r#"
+            INSERT INTO audit_results (skill_id, status, rules_version, findings_json, audited_at, created_at, updated_at)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            ON CONFLICT(skill_id) DO UPDATE SET
+                status=excluded.status,
+                rules_version=excluded.rules_version,
+                findings_json=excluded.findings_json,
+                audited_at=excluded.audited_at,
+                updated_at=excluded.updated_at
+            "#,
+            params![
+                report.skill_id,
+                report.status.as_str(),
+                report.rules_version,
+                serde_json::to_string(&report.findings)?,
+                report.audited_at,
+                now,
+                now,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_audit(&self, skill_id: &str) -> Result<Option<AuditReport>> {
+        self.conn
+            .query_row(
+                "SELECT skill_id, status, rules_version, findings_json, audited_at FROM audit_results WHERE skill_id = ?1",
+                [skill_id],
+                audit_from_row,
+            )
+            .optional()
+            .map_err(Into::into)
+    }
+
     fn sync_fts(&self, skill: &Skill) -> Result<()> {
         self.conn.execute(
             "DELETE FROM skill_search_fts WHERE skill_id = ?1",
@@ -343,6 +440,28 @@ impl Database {
         )?;
         Ok(())
     }
+}
+
+fn trust_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<TrustRecord> {
+    let status: String = row.get(1)?;
+    Ok(TrustRecord {
+        skill_id: row.get(0)?,
+        status: TrustStatus::parse(&status),
+        reason: row.get(2)?,
+        decided_at: row.get(3)?,
+    })
+}
+
+fn audit_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<AuditReport> {
+    let status: String = row.get(1)?;
+    let findings_json: String = row.get(3)?;
+    Ok(AuditReport {
+        skill_id: row.get(0)?,
+        status: AuditStatus::parse(&status),
+        rules_version: row.get(2)?,
+        findings: serde_json::from_str(&findings_json).unwrap_or_default(),
+        audited_at: row.get(4)?,
+    })
 }
 
 fn skill_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Skill> {

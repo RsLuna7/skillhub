@@ -1,3 +1,5 @@
+use crate::audit::AuditStatus;
+use crate::trust::{TrustStatus, Visibility};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -39,12 +41,24 @@ pub struct SkillCommand {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditInfo {
+    pub status: AuditStatus,
+    pub findings: usize,
+    pub rules_version: String,
+    pub audited_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillUsageSummary {
     pub skill: Skill,
     pub files: Vec<SkillFile>,
     pub commands: Vec<SkillCommand>,
     pub source: String,
     pub next_actions: Vec<String>,
+    pub trust: TrustStatus,
+    pub trust_reason: Option<String>,
+    pub audit: Option<AuditInfo>,
+    pub visibility: Visibility,
 }
 
 pub fn next_actions(skill_id: &str) -> Vec<String> {

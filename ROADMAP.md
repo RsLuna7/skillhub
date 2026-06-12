@@ -18,12 +18,16 @@
 
 ## v0.3
 
-- Switch MCP server internals to the official Rust MCP SDK.
-- Improve parsing for `skill.yaml` and common skill frontmatter.
-- Add `skillhub doctor --fix-suggestions`.
+- Reposition SkillHub as a local control plane for AI skills.
+- Add deterministic local skill audits (`skillhub audit`).
+- Add per-skill trust decisions that gate MCP visibility (`skillhub trust`).
+- Add agent integration diagnostics (`skillhub doctor agents|codex|claude|cursor`).
+- Surface trust/audit/visibility metadata in `show` and MCP `get_skill`.
 
 ## v0.4
 
+- Switch MCP server internals to the official Rust MCP SDK.
+- Improve parsing for `skill.yaml` and common skill frontmatter.
 - Add version pinning for installed GitHub skills.
 - Add lockfile metadata for skill provenance.
 - Add checksum and safety scan reports.

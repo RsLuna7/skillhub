@@ -19,7 +19,7 @@ pub struct DryRunReport {
 
 pub fn print_run(db: &Database, skill_id: &str, command_index: usize, dry_run: bool) -> Result<()> {
     if !dry_run {
-        bail!("SkillHub v0.2 only supports --dry-run. It does not execute skill commands.");
+        bail!("SkillHub only supports --dry-run. It does not execute skill commands.");
     }
     let report = dry_run_report(db, skill_id, command_index)?;
     println!("Dry run");

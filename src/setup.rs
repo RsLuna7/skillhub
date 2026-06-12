@@ -74,7 +74,7 @@ fn skillhub_command() -> PathBuf {
     std::env::current_exe().unwrap_or_else(|_| PathBuf::from("skillhub"))
 }
 
-fn command_on_path(command: &str) -> bool {
+pub(crate) fn command_on_path(command: &str) -> bool {
     let Some(paths) = std::env::var_os("PATH") else {
         return false;
     };

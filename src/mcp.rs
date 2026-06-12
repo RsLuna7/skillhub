@@ -2,6 +2,8 @@ use crate::config::AppConfig;
 use crate::db::Database;
 use crate::doctor;
 use crate::security::safe_skill_file_path;
+use crate::skill::Skill;
+use crate::trust;
 use anyhow::{Result, bail};
 use serde_json::{Value, json};
 use std::io::{self, BufRead, Write};
@@ -47,7 +49,7 @@ pub fn serve_stdio(cfg: AppConfig, db: Database) -> Result<()> {
     Ok(())
 }
 
-fn handle_request(cfg: &AppConfig, db: &Database, req: &Value) -> Result<Value> {
+pub fn handle_request(cfg: &AppConfig, db: &Database, req: &Value) -> Result<Value> {
     match req.get("method").and_then(Value::as_str).unwrap_or("") {
         "initialize" => Ok(json!({
             "protocolVersion": "2024-11-05",
@@ -87,7 +89,7 @@ fn tools() -> Value {
         ),
         tool(
             "skillhub.get_skill",
-            "Get skill summary and metadata",
+            "Get skill summary with trust, audit, and visibility metadata",
             json!({"type":"object","properties":{"skill_id":{"type":"string"}},"required":["skill_id"]})
         ),
         tool(
@@ -116,16 +118,18 @@ fn call_tool(cfg: &AppConfig, db: &Database, name: &str, args: &Value) -> Result
     match name {
         "skillhub.search_skills" => {
             let query = required_str(args, "query")?;
-            Ok(json!({ "results": db.search_skills(query)? }))
+            Ok(json!({ "results": without_blocked(db, db.search_skills(query)?)? }))
         }
-        "skillhub.list_skills" => Ok(json!({ "skills": db.list_skills()? })),
+        "skillhub.list_skills" => Ok(json!({ "skills": without_blocked(db, db.list_skills()?)? })),
         "skillhub.get_skill" => {
             let skill_id = required_str(args, "skill_id")?;
+            require_not_blocked(db, skill_id)?;
             Ok(json!({ "skill": crate::search::usage_summary(db, skill_id)? }))
         }
         "skillhub.get_skill_file" => {
             let skill_id = required_str(args, "skill_id")?;
             let file = required_str(args, "file")?;
+            require_not_blocked(db, skill_id)?;
             let Some(skill) = db.get_skill(skill_id)? else {
                 bail!("skill not found: {skill_id}");
             };
@@ -144,14 +148,33 @@ fn call_tool(cfg: &AppConfig, db: &Database, name: &str, args: &Value) -> Result
         }
         "skillhub.get_skill_commands" => {
             let skill_id = required_str(args, "skill_id")?;
+            require_not_blocked(db, skill_id)?;
             Ok(json!({ "commands": db.get_commands(skill_id)? }))
         }
         "skillhub.doctor_skill" => {
             let skill_id = required_str(args, "skill_id")?;
+            require_not_blocked(db, skill_id)?;
             Ok(json!(doctor::doctor_skill(db, skill_id)?))
         }
         _ => bail!("unknown tool: {name}"),
     }
+}
+
+fn without_blocked(db: &Database, skills: Vec<Skill>) -> Result<Vec<Skill>> {
+    let mut visible = Vec::with_capacity(skills.len());
+    for skill in skills {
+        if !trust::is_blocked(db, &skill.id)? {
+            visible.push(skill);
+        }
+    }
+    Ok(visible)
+}
+
+fn require_not_blocked(db: &Database, skill_id: &str) -> Result<()> {
+    if trust::is_blocked(db, skill_id)? {
+        bail!("skill {skill_id} is blocked by local trust policy; run `skillhub trust list`");
+    }
+    Ok(())
 }
 
 fn required_str<'a>(args: &'a Value, key: &str) -> Result<&'a str> {
